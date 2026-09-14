@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# Secrets and local env (never commit keys)
+.env
+.env.*
+!.env.example
+
+# Local JSON store (catalog, questions, users, keys, play history)
+data/*.json
+
+# Personal notes, not part of the product
+ignore.txt
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.cursor/
