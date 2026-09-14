@@ -283,15 +283,13 @@ export function usePlayPage() {
     window.location.assign('/')
   }
 
-  function onDownloadCopy(withOptions: boolean) {
+  function onDownloadCopy(forTeacher: boolean) {
     downloadQuizCopy({
       categoryName: heading.categoryName,
       topicName: heading.topicName,
       difficultyLabel: isDifficulty(heading.difficulty) ? difficultyLabel(heading.difficulty) : '',
       questions,
-      outcomes,
-      score,
-      withOptions,
+      forTeacher,
     })
   }
 

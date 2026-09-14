@@ -1,0 +1,14 @@
+# Keep the image small and free of secrets / local JSON.
+node_modules
+dist
+data/*.json
+.git
+.github
+.env
+.env.*
+!.env.example
+ignore.txt
+*.log
+.cursor
+.vscode
+.idea

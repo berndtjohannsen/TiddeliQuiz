@@ -20,12 +20,12 @@ async function start() {
   const apiListener = getRequestListener(app.fetch)
 
   if (isProd) {
-    // Production static hosting will be added when we need a real deploy.
     const server = http.createServer((req, res) => {
       void apiListener(req, res)
     })
-    server.listen(port, () => {
-      log('info', `TiddeliQuiz API listening on http://localhost:${port}`)
+    // 0.0.0.0 so the container is reachable from the host.
+    server.listen(port, '0.0.0.0', () => {
+      log('info', `TiddeliQuiz listening on http://0.0.0.0:${port}`)
     })
     return
   }

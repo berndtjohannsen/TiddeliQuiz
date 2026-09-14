@@ -140,11 +140,11 @@ export function PlaySummary(props: { play: PlayPageModel }) {
       {play.moreError ? <p className="text-sm text-red-400">{play.moreError}</p> : null}
       <p className="mt-2 text-sm text-slate-400">{strings.downloadCopy}</p>
       <div className="flex flex-wrap gap-3">
-        <button type="button" className={btnSecondary} onClick={() => play.onDownloadCopy(true)}>
-          {strings.downloadWithOptions}
-        </button>
         <button type="button" className={btnSecondary} onClick={() => play.onDownloadCopy(false)}>
-          {strings.downloadWithoutOptions}
+          {strings.downloadStudent}
+        </button>
+        <button type="button" className={btnSecondary} onClick={() => play.onDownloadCopy(true)}>
+          {strings.downloadTeacher}
         </button>
       </div>
       <div className="mt-4 flex flex-col gap-3">

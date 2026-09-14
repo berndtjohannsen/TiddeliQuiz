@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import type { Difficulty } from '../shared/types'
 import { mountAdminApi } from './adminApi'
@@ -124,3 +126,23 @@ app.post('/api/quiz/start', async (c) => {
     available: drawn.unseen,
   })
 })
+
+/** Built Vite files. Only in the container / NODE_ENV=production. */
+function mountProductionUi() {
+  if (process.env.NODE_ENV !== 'production') {
+    return
+  }
+  app.use('/*', serveStatic({ root: './dist' }))
+  app.get('*', (c) => {
+    if (c.req.path.startsWith('/api')) {
+      return c.json({ error: 'Not found' }, 404)
+    }
+    try {
+      return c.html(fs.readFileSync('./dist/index.html', 'utf8'))
+    } catch {
+      return c.text('UI not built. Run npm run build.', 500)
+    }
+  })
+}
+
+mountProductionUi()
