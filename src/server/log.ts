@@ -30,7 +30,13 @@ function allowed(level: LogLevel) {
   return rank[level] <= rank[minLevel]
 }
 
-/** Store a line for the admin log. In production also print so Portainer can see it. */
+/** One line to Docker/Portainer. stdout is often fully buffered when not a TTY. */
+function writeContainerLog(line: string, isError = false) {
+  const stream = isError ? process.stderr : process.stdout
+  stream.write(`${line}\n`)
+}
+
+/** Store a line for the admin log. Also print so Portainer can see it. */
 export function log(level: LogLevel, message: string) {
   const line = `${new Date().toISOString()} [${level}] ${message}`
   memory.push({ level, line })
@@ -38,11 +44,7 @@ export function log(level: LogLevel, message: string) {
     memory.shift()
   }
   if (process.env.NODE_ENV === 'production') {
-    if (level === 'error') {
-      console.error(line)
-    } else {
-      console.log(line)
-    }
+    writeContainerLog(line, level === 'error')
   }
 }
 

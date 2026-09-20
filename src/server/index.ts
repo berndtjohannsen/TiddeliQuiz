@@ -15,6 +15,12 @@ const port = getPort()
 const isProd = process.env.NODE_ENV === 'production'
 const projectRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../..')
 
+if (isProd) {
+  process.stdout.write(
+    `TiddeliQuiz starting image=${process.env.TIDDELI_IMAGE ?? '?'} port=${port}\n`,
+  )
+}
+
 /** Start API + (in development) the Vite React app on one port. */
 async function start() {
   const apiListener = getRequestListener(app.fetch)

@@ -13,7 +13,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 # Shown in `docker inspect`; bump when the start command changes so stale :latest is obvious.
-ENV TIDDELI_IMAGE=2026-09-20-noca
+ENV TIDDELI_IMAGE=2026-09-20-logs
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
@@ -24,5 +24,5 @@ RUN mkdir -p /app/data
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-# Node 20 has no --use-system-ca. Keep this in sync with package.json "start".
-CMD ["npm", "start"]
+# Run node directly. `npm start` as PID 1 often hides stdout from Portainer.
+CMD ["node", "--dns-result-order=ipv4first", "./node_modules/tsx/dist/cli.mjs", "src/server/index.ts"]
