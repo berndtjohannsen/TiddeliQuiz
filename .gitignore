@@ -23,5 +23,3 @@ Thumbs.db
 .vscode/
 .idea/
 .cursor/
-
-docker-compose.yml
