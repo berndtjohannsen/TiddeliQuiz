@@ -22,4 +22,5 @@ RUN mkdir -p /app/data
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", "--use-system-ca", "--dns-result-order=ipv4first", "./node_modules/tsx/dist/cli.mjs", "src/server/index.ts"]
+# Node 20 has no --use-system-ca (that flag is for newer Node on Windows).
+CMD ["node", "--dns-result-order=ipv4first", "./node_modules/tsx/dist/cli.mjs", "src/server/index.ts"]
