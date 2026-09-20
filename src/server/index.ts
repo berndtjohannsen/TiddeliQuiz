@@ -65,6 +65,7 @@ process.once('SIGINT', onStop)
 process.once('SIGTERM', onStop)
 
 void start().catch((err) => {
+  console.error('Failed to start:', err)
   log('error', `Failed to start: ${String(err)}`)
   process.exit(1)
 })

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node --use-system-ca --dns-result-order=ipv4first ./node_modules/tsx/dist/cli.mjs watch --exclude \"./src/client/**\" --exclude \"./data/**\" src/server/index.ts",
     "build": "vite build",
-    "start": "node --use-system-ca --dns-result-order=ipv4first ./node_modules/tsx/dist/cli.mjs src/server/index.ts"
+    "start": "node --dns-result-order=ipv4first ./node_modules/tsx/dist/cli.mjs src/server/index.ts"
   },
   "engines": {
     "node": ">=20"

@@ -30,12 +30,19 @@ function allowed(level: LogLevel) {
   return rank[level] <= rank[minLevel]
 }
 
-/** Store a line for the admin log. Nothing is printed to the server terminal. */
+/** Store a line for the admin log. In production also print so Portainer can see it. */
 export function log(level: LogLevel, message: string) {
   const line = `${new Date().toISOString()} [${level}] ${message}`
   memory.push({ level, line })
   if (memory.length > maxLines) {
     memory.shift()
+  }
+  if (process.env.NODE_ENV === 'production') {
+    if (level === 'error') {
+      console.error(line)
+    } else {
+      console.log(line)
+    }
   }
 }
 

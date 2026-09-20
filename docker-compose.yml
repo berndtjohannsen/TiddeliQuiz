@@ -1,14 +1,25 @@
-# Pull (or build) the app. JSON stays on the host in ./data.
+# Portainer stack: pull the image GitHub builds. Do not build on the server.
+# Paste this in Portainer (Stacks → Add stack). Set env vars in the Portainer UI.
+# Do not use env_file: .env here — that file usually does not exist on the Portainer host.
+
 services:
   tiddeliquiz:
-    image: ghcr.io/berndtjohannsen/tiddeliquiz:latest
-    build: .
+    image: ghcr.io/berndtjohannsen/tiddeliquiz:${TIDDELI_TAG:-latest}
+    pull_policy: always
+    container_name: tiddeliquiz
     ports:
-      - "3001:3001"
-    env_file:
-      - .env
+      - "${HOST_PORT:-3001}:3001"
     environment:
       NODE_ENV: production
+      PORT: "3001"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+      AI_MODEL: ${AI_MODEL:-deepseek-v4-flash}
+      AI_API_KEY: ${AI_API_KEY:-}
     volumes:
-      - ./data:/app/data
+      - tiddeli-data:/app/data
     restart: unless-stopped
+
+volumes:
+  tiddeli-data:
