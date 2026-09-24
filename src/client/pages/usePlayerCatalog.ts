@@ -258,7 +258,7 @@ export function usePlayerCatalog() {
   async function fetchBankQuestions(topicId: string, difficulty: Difficulty) {
     const res = await fetch(
       `/api/player/bank/questions?topicId=${encodeURIComponent(topicId)}&difficulty=${encodeURIComponent(difficulty)}`,
-      { credentials: 'include' },
+      { credentials: 'include', cache: 'no-store' },
     )
     if (!res.ok) {
       setError(strings.catalogLoadFailed)
@@ -339,6 +339,8 @@ export function usePlayerCatalog() {
       return
     }
     setBankCounts(data.bankCounts ?? bankCounts)
+    const gone = new Set(pendingRemoveIds)
+    setBankQuestions((current) => current.filter((row) => !gone.has(row.id)))
     setPendingRemoveIds([])
     setSelectedQuestionIds([])
     setLevel('question-list')

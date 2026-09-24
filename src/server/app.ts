@@ -21,6 +21,12 @@ import {
 /** HTTP API. Player and admin UIs call these routes. */
 export const app = new Hono()
 
+// Question lists change after a delete. Browsers must not reuse an older GET.
+app.use('/api/*', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-store')
+})
+
 mountCatalogMutations(app, '/api/player', (c) => {
   const player = playerAccount(c)
   if (!player) {

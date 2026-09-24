@@ -39,6 +39,8 @@ export function useAdminBank(opts: {
   const [listDifficulties, setListDifficulties] = useState<Difficulty[]>(['medium'])
   const listDifficultiesRef = useRef(listDifficulties)
   listDifficultiesRef.current = listDifficulties
+  /** Ignore a question-list response that started before a newer load. */
+  const listFetchSeq = useRef(0)
   const [bankQuestions, setBankQuestions] = useState<StoredQuestion[]>([])
   const [questionDraft, setQuestionDraft] = useState<StoredQuestion | null>(null)
   const [removeQuestionFrom, setRemoveQuestionFrom] = useState<'list' | 'edit'>('list')
@@ -71,20 +73,27 @@ export function useAdminBank(opts: {
   }
 
   async function fetchBankQuestions(topicId: string, difficulty: Difficulty | Difficulty[]) {
+    const seq = ++listFetchSeq.current
     const wanted = orderedDifficulties(Array.isArray(difficulty) ? difficulty : [difficulty])
     const questionsPath = `${adminCatalogBase(opts.catalogOwner)}/bank/questions`
     const lists: StoredQuestion[][] = []
     for (const level of wanted) {
       const res = await fetch(
         `${questionsPath}?topicId=${encodeURIComponent(topicId)}&difficulty=${encodeURIComponent(level)}`,
-        { credentials: 'include' },
+        { credentials: 'include', cache: 'no-store' },
       )
+      if (seq !== listFetchSeq.current) {
+        return
+      }
       if (!res.ok) {
         opts.setError(strings.loadFailed)
         return
       }
       const data = (await res.json()) as { questions?: StoredQuestion[] }
       lists.push(data.questions ?? [])
+    }
+    if (seq !== listFetchSeq.current) {
+      return
     }
     const seen = new Set<string>()
     setBankQuestions(
@@ -415,6 +424,9 @@ export function useAdminBank(opts: {
     opts.setConfig((current) =>
       current ? { ...current, bankCounts: data.bankCounts ?? current.bankCounts ?? [] } : current,
     )
+    const gone = new Set(ids)
+    listFetchSeq.current += 1
+    setBankQuestions((current) => current.filter((row) => !gone.has(row.id)))
     setQuestionDraft(null)
     setPendingRemoveIds([])
     setSelectedQuestionIds([])
