@@ -5,6 +5,7 @@ import {
   bankAvailable,
   clearPlayerContext,
   playDifficultyChoices,
+  roundAllCount,
   roundCountChoices,
   clearSeen,
   fetchQuizRound,
@@ -48,6 +49,8 @@ export function useHomePage() {
   const [catalogEpoch, setCatalogEpoch] = useState(0)
   const startAbort = useRef<AbortController | null>(null)
   const startSeq = useRef(0)
+  /** Count restored from the last round. Applied once, then "Alla" is the default. */
+  const pinnedCount = useRef<number | null>(null)
 
   useEffect(() => {
     return () => {
@@ -89,6 +92,7 @@ export function useHomePage() {
           setDifficulty(saved.difficulty)
         }
         if (typeof saved?.requestedCount === 'number' && saved.requestedCount >= 5) {
+          pinnedCount.current = saved.requestedCount
           setCount(saved.requestedCount)
         }
       } else {
@@ -170,7 +174,7 @@ export function useHomePage() {
     countChoices.includes(count) &&
     guestDifficulties.includes(difficulty)
 
-  // Keep difficulty and count inside what the bank can offer.
+  // Keep difficulty in range, and default the count to every available question.
   useEffect(() => {
     if (!topicId) {
       return
@@ -180,11 +184,20 @@ export function useHomePage() {
       setDifficulty(diffs[0])
       return
     }
-    const counts = roundCountChoices(bankAvailable(bankCounts, topicId, difficulty))
-    if (counts.length && !counts.includes(count)) {
-      setCount(counts[counts.length - 1])
+    const available = bankAvailable(bankCounts, topicId, difficulty)
+    const all = roundAllCount(available)
+    const counts = roundCountChoices(available)
+    if (!all || !counts.length) {
+      return
     }
-  }, [topicId, difficulty, count, bankCounts])
+    if (pinnedCount.current != null) {
+      const pinned = pinnedCount.current
+      pinnedCount.current = null
+      setCount(counts.includes(pinned) ? pinned : all)
+      return
+    }
+    setCount(all)
+  }, [topicId, difficulty, bankCounts])
 
   // Drop a stale start error when the player changes what they would start.
   useEffect(() => {

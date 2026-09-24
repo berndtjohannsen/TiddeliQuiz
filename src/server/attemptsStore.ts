@@ -63,7 +63,7 @@ export function parseAttemptFields(body: {
     ? (body.difficulty as PlayDifficulty)
     : null
   const count = asInt(body.count)
-  if (!topicId || !categoryName || !topicName || !difficulty || count < 1 || count > 50) {
+  if (!topicId || !categoryName || !topicName || !difficulty || count < 1) {
     return { error: 'Invalid attempt' }
   }
   return {

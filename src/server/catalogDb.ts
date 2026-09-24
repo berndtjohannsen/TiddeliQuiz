@@ -416,7 +416,7 @@ export function dbLoadQuestions(filter: {
   } else if (filter.ownerType === 'platform') {
     where.push(`q.owner_type = 'platform'`)
   }
-  const sql = `${QUESTION_SELECT}${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`
+  const sql = `${QUESTION_SELECT}${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY q.created_at DESC`
   const rows = database.prepare(sql).all(...params) as QuestionRow[]
   return rows.map((row) => mapQuestion(row, optionsFor(database, row.id)))
 }

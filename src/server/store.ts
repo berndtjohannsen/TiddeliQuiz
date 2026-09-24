@@ -422,8 +422,55 @@ export function loadAiRuntime() {
   }
 }
 
-function questionKey(text: string) {
-  return text.trim().toLowerCase()
+/** Words that do not identify a question. Names and facts are what we compare. */
+const questionStop = new Set([
+  'vem', 'vad', 'vilken', 'vilket', 'vilka', 'när', 'hur', 'var', 'är', 'varit',
+  'en', 'ett', 'den', 'det', 'de', 'som', 'för', 'av', 'och', 'eller', 'i', 'på',
+  'till', 'med', 'om', 'har', 'hade', 'från', 'inte', 'att', 'sin', 'sitt', 'sina',
+  'denna', 'detta', 'man', 'du', 'känd', 'kända', 'film', 'filmen', 'filmer',
+])
+
+function normalizeQuestion(text: string) {
+  return text
+    .toLowerCase()
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function contentTokens(text: string) {
+  return normalizeQuestion(text)
+    .split(' ')
+    .filter((word) => word.length >= 3 && !questionStop.has(word))
+}
+
+function answerKey(options: string[], correctIndex: number) {
+  return normalizeQuestion(options[correctIndex] ?? '')
+}
+
+/** Same wording, or the same answer plus mostly the same names and facts. */
+function questionsAreDuplicates(
+  a: Pick<StoredQuestion, 'question' | 'options' | 'correctIndex'>,
+  b: Pick<StoredQuestion, 'question' | 'options' | 'correctIndex'>,
+) {
+  if (normalizeQuestion(a.question) === normalizeQuestion(b.question)) {
+    return true
+  }
+  const leftAnswer = answerKey(a.options, a.correctIndex)
+  const rightAnswer = answerKey(b.options, b.correctIndex)
+  if (!leftAnswer || leftAnswer.length < 3 || leftAnswer !== rightAnswer) {
+    return false
+  }
+  const left = contentTokens(a.question)
+  const right = contentTokens(b.question)
+  if (!left.length || !right.length) {
+    return false
+  }
+  const rightSet = new Set(right)
+  const shared = left.filter((word) => rightSet.has(word)).length
+  const smaller = Math.min(left.length, right.length)
+  return shared >= 2 && shared / smaller >= 0.6
 }
 
 /** Guest start list: stocked platform subjects only (never another player's folders). */
@@ -520,18 +567,19 @@ function appendOwnedQuestions(
   ownerType: 'platform' | 'user',
   ownerId?: string,
 ): { added: number; skipped: number } {
-  const seen = new Set(
-    dbLoadQuestions({ topicId, ownerType, ownerId }).map((q) => questionKey(q.question)),
-  )
+  const seen = dbLoadQuestions({ topicId, ownerType, ownerId })
   let added = 0
   let skipped = 0
   for (const item of generated) {
-    const key = questionKey(item.question)
-    if (!key || seen.has(key)) {
+    const candidate: Pick<StoredQuestion, 'question' | 'options' | 'correctIndex'> = {
+      question: item.question,
+      options: item.options,
+      correctIndex: item.correctIndex,
+    }
+    if (!normalizeQuestion(item.question) || seen.some((row) => questionsAreDuplicates(row, candidate))) {
       skipped += 1
       continue
     }
-    seen.add(key)
     const row: StoredQuestion = {
       id: crypto.randomUUID(),
       topicId,
@@ -549,6 +597,7 @@ function appendOwnedQuestions(
       row.sourceUrl = item.sourceUrl
     }
     dbInsertQuestion(row)
+    seen.push(row)
     added += 1
   }
   return { added, skipped }
@@ -662,9 +711,8 @@ export function updateBankQuestion(
   } else {
     delete next.sourceUrl
   }
-  const key = questionKey(next.question)
-  const duplicate = dbLoadQuestions({ topicId: current.topicId, difficulty: current.difficulty }).some(
-    (q) => q.id !== id && questionKey(q.question) === key,
+  const duplicate = dbLoadQuestions({ topicId: current.topicId, ownerType: current.ownerType, ownerId: current.ownerId }).some(
+    (q) => q.id !== id && questionsAreDuplicates(q, next),
   )
   if (duplicate) {
     return { error: 'duplicate' }

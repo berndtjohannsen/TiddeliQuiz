@@ -9,20 +9,25 @@ export const SESSION_KEY = 'tiddeli-player'
 export const SEEN_KEY = 'tiddeli-seen-questions'
 const SEEN_MAX = 40
 
-/** Round size steps. Guest dropdowns only list values the bank can fill. */
-export const COUNT_CHOICES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 export const DIFFICULTY_ORDER: Difficulty[] = ['hard', 'medium', 'easy', 'children']
-const ROUND_COUNT_MAX = 50
 
-/** Steps of 5, plus the exact bank size when it is 5–50 and not already a step. */
+/** How many questions "Alla" plays: every question in the bank. */
+export function roundAllCount(available: number) {
+  const exact = Math.floor(available)
+  return exact >= 5 ? exact : 0
+}
+
+/** "Alla" first, then steps of 5 that are smaller than the bank. */
 export function roundCountChoices(available: number) {
-  const choices = COUNT_CHOICES.filter((n) => n <= available)
-  const exact = Math.min(ROUND_COUNT_MAX, Math.floor(available))
-  if (exact >= 5 && !choices.includes(exact)) {
-    choices.push(exact)
-    choices.sort((a, b) => a - b)
+  const all = roundAllCount(available)
+  if (!all) {
+    return []
   }
-  return choices
+  const steps: number[] = []
+  for (let n = 5; n < all; n += 5) {
+    steps.push(n)
+  }
+  return [all, ...steps]
 }
 
 export function isDifficulty(value?: string): value is Difficulty {

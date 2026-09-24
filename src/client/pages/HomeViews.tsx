@@ -362,9 +362,9 @@ export function StartForm(props: {
           className="rounded bg-slate-800 p-2"
           onChange={(e) => props.onCount(Number(e.target.value))}
         >
-          {props.countChoices.map((n) => (
+          {props.countChoices.map((n, index) => (
             <option key={n} value={n}>
-              {n}
+              {index === 0 ? strings.difficultyAll : n}
             </option>
           ))}
         </select>
