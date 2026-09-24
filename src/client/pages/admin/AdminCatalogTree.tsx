@@ -82,7 +82,7 @@ export function AdminCatalogTree(props: {
   onConfirmNewSubject: () => void
   onGoSubjects: () => void
   onPatchTopic: (id: string, patch: Partial<Topic>) => void
-  onEditSubject: () => void
+  onEditSubject: (id: string, back: 'subjects' | 'questions') => void
   onStartRenameTopic: (id: string) => void
   topicRenameDraft: string
   onTopicRenameDraft: (value: string) => void
@@ -95,6 +95,7 @@ export function AdminCatalogTree(props: {
   onGenerateAll: () => void
   onGenerateBank: (d: Difficulty) => void
   onOpenQuestionList: (d: Difficulty) => void
+  onEditSelected: () => void
   onAskClearQuestions: () => void
   onAskClearDifficulty: (d: Difficulty) => void
   onClearQuestions: () => void
@@ -335,9 +336,9 @@ export function AdminCatalogTree(props: {
                         )
                         .join(' · ')}`}
                       onOpen={() => props.onOpenQuestions(t.id)}
-                      onEdit={() => props.onStartRenameTopic(t.id)}
+                      onEdit={() => props.onEditSubject(t.id, 'subjects')}
                       onDelete={() => props.onAskRemoveTopic(t.id)}
-                      editLabel={strings.rename}
+                      editLabel={strings.editSubject}
                       deleteLabel={strings.remove}
                     />
                   ))
@@ -388,11 +389,12 @@ export function AdminCatalogTree(props: {
           onToggleDifficulty={props.onToggleGenerateDifficulty}
           onGenerate={(d) => void props.onGenerateBank(d)}
           onOpenList={(d) => void props.onOpenQuestionList(d)}
+          onEditSelected={() => void props.onEditSelected()}
           onClearDifficulty={props.onAskClearDifficulty}
           onClear={props.onAskClearQuestions}
           canClear={bankCountForTopic(props.config.bankCounts, topic.id) > 0}
           onRename={() => props.onStartRenameTopic(topic.id)}
-          onEditPrompt={props.onEditSubject}
+          onEditPrompt={() => props.onEditSubject(topic.id, 'questions')}
           onGenerateSelected={props.onGenerateAll}
         >
           <Breadcrumb

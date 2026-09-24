@@ -8,8 +8,10 @@ import {
   roundCountChoices,
   clearSeen,
   fetchQuizRound,
+  isPlayDifficulty,
   isPrivateCategory,
   readPlayerSession,
+  readStoredRound,
   ROUND_KEY,
   unseenLeftAfterDraw,
   writePlayerSession,
@@ -77,8 +79,22 @@ export function useHomePage() {
       setCategories(cats)
       setTopics(list)
       setBankCounts(data.bankCounts ?? [])
-      setCategoryId('')
-      setTopicId('')
+      const saved = readStoredRound()
+      const savedTopic = list.find((t) => t.id === saved?.topicId)
+      const savedCategory = savedTopic ? cats.find((c) => c.id === savedTopic.categoryId) : undefined
+      if (savedTopic && savedCategory) {
+        setCategoryId(savedCategory.id)
+        setTopicId(savedTopic.id)
+        if (isPlayDifficulty(saved?.difficulty)) {
+          setDifficulty(saved.difficulty)
+        }
+        if (typeof saved?.requestedCount === 'number' && saved.requestedCount >= 5) {
+          setCount(saved.requestedCount)
+        }
+      } else {
+        setCategoryId('')
+        setTopicId('')
+      }
       setStatus(cats.length && list.length ? 'ready' : 'empty')
     })().catch(() => {
       if (!cancelled) {

@@ -35,6 +35,10 @@ export function useAdminBank(opts: {
   const [generatingDifficulty, setGeneratingDifficulty] = useState<Difficulty | null>(null)
   const generatingAllRef = useRef(false)
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium')
+  /** Difficulties shown together on the question list. One entry is a normal Edit. */
+  const [listDifficulties, setListDifficulties] = useState<Difficulty[]>(['medium'])
+  const listDifficultiesRef = useRef(listDifficulties)
+  listDifficultiesRef.current = listDifficulties
   const [bankQuestions, setBankQuestions] = useState<StoredQuestion[]>([])
   const [questionDraft, setQuestionDraft] = useState<StoredQuestion | null>(null)
   const [removeQuestionFrom, setRemoveQuestionFrom] = useState<'list' | 'edit'>('list')
@@ -62,18 +66,27 @@ export function useAdminBank(opts: {
     setPendingRemoveIds([])
   }
 
-  async function fetchBankQuestions(topicId: string, difficulty: Difficulty) {
+  function orderedDifficulties(ids: Difficulty[]) {
+    return bankDifficulties.map((d) => d.id).filter((id) => ids.includes(id))
+  }
+
+  async function fetchBankQuestions(topicId: string, difficulty: Difficulty | Difficulty[]) {
+    const wanted = orderedDifficulties(Array.isArray(difficulty) ? difficulty : [difficulty])
     const questionsPath = `${adminCatalogBase(opts.catalogOwner)}/bank/questions`
-    const res = await fetch(
-      `${questionsPath}?topicId=${encodeURIComponent(topicId)}&difficulty=${encodeURIComponent(difficulty)}`,
-      { credentials: 'include' },
-    )
-    if (!res.ok) {
-      opts.setError(strings.loadFailed)
-      return
+    const lists: StoredQuestion[][] = []
+    for (const level of wanted) {
+      const res = await fetch(
+        `${questionsPath}?topicId=${encodeURIComponent(topicId)}&difficulty=${encodeURIComponent(level)}`,
+        { credentials: 'include' },
+      )
+      if (!res.ok) {
+        opts.setError(strings.loadFailed)
+        return
+      }
+      const data = (await res.json()) as { questions?: StoredQuestion[] }
+      lists.push(data.questions ?? [])
     }
-    const data = (await res.json()) as { questions?: StoredQuestion[] }
-    setBankQuestions(data.questions ?? [])
+    setBankQuestions(lists.flat())
     setSelectedQuestionIds([])
   }
 
@@ -103,8 +116,8 @@ export function useAdminBank(opts: {
     opts.setConfig((current) =>
       current ? { ...current, bankCounts: data.bankCounts ?? current.bankCounts ?? [] } : current,
     )
-    if (levelRef.current === 'question-list' && selectedDifficultyRef.current === difficulty) {
-      await fetchBankQuestions(topicId, difficulty)
+    if (levelRef.current === 'question-list' && listDifficultiesRef.current.includes(difficulty)) {
+      await fetchBankQuestions(topicId, listDifficultiesRef.current)
     }
     return { added: data.added ?? 0, skipped: data.skipped ?? 0 }
   }
@@ -225,10 +238,25 @@ export function useAdminBank(opts: {
       return
     }
     setSelectedDifficulty(difficulty)
+    setListDifficulties([difficulty])
     opts.setQuery('')
     opts.setLevel('question-list')
     opts.setError('')
     await fetchBankQuestions(opts.selectedTopicId, difficulty)
+  }
+
+  /** Question list for the ticked difficulties, instead of one level at a time. */
+  async function openSelectedQuestions() {
+    if (!opts.selectedTopicId || generateDifficulties.length === 0) {
+      return
+    }
+    const picked = orderedDifficulties(generateDifficulties)
+    setSelectedDifficulty(picked[0])
+    setListDifficulties(picked)
+    opts.setQuery('')
+    opts.setLevel('question-list')
+    opts.setError('')
+    await fetchBankQuestions(opts.selectedTopicId, picked)
   }
 
   function openEditQuestion(row: StoredQuestion) {
@@ -350,7 +378,7 @@ export function useAdminBank(opts: {
     setQuestionDraft(null)
     opts.setLevel('question-list')
     if (opts.selectedTopicId) {
-      await fetchBankQuestions(opts.selectedTopicId, selectedDifficulty)
+      await fetchBankQuestions(opts.selectedTopicId, listDifficultiesRef.current)
     }
   }
 
@@ -386,7 +414,7 @@ export function useAdminBank(opts: {
       fillText(strings.removedQuestions, { count: data.removed ?? ids.length }),
     )
     if (opts.selectedTopicId) {
-      await fetchBankQuestions(opts.selectedTopicId, selectedDifficulty)
+      await fetchBankQuestions(opts.selectedTopicId, listDifficultiesRef.current)
     }
   }
 
@@ -446,6 +474,7 @@ export function useAdminBank(opts: {
     toggleGenerateDifficulty,
     generatingDifficulty,
     selectedDifficulty,
+    listDifficulties,
     setSelectedDifficulty,
     bankQuestions,
     questionDraft,
@@ -458,6 +487,7 @@ export function useAdminBank(opts: {
     openGenerateAll,
     generateAllDifficulties,
     openQuestionList,
+    openSelectedQuestions,
     openEditQuestion,
     startRemoveQuestion,
     toggleQuestionSelected,

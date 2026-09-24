@@ -1,4 +1,4 @@
-import type { FormEvent, ReactNode } from 'react'
+import { useEffect, useRef, type FormEvent, type ReactNode } from 'react'
 import type { Category, PlayDifficulty, Topic } from '../../shared/types'
 import { APP_VERSION } from '../../version'
 import { difficultyLabel } from '../catalogUi'
@@ -78,6 +78,10 @@ export function PlayCatalogBlock(props: {
   const noCats = !showLoading && !showError && props.categories.length === 0
   const waitingForCategory = props.status === 'ready' && props.categories.length > 0 && !hasCategory
   const noTopics = props.status === 'ready' && hasCategory && topicsHere.length === 0
+  const selectedTopicRef = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    selectedTopicRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [props.topicId, props.categoryId])
   const placeholder = showLoading
     ? strings.loadingCatalog
     : showError
@@ -127,6 +131,7 @@ export function PlayCatalogBlock(props: {
               type="button"
               role="option"
               aria-selected={t.id === props.topicId}
+              ref={t.id === props.topicId ? selectedTopicRef : undefined}
               disabled={props.status !== 'ready' || props.busy}
               className={`block w-full px-3 py-2 text-left disabled:opacity-50 ${
                 t.id === props.topicId ? 'bg-sky-600' : 'hover:bg-slate-700'

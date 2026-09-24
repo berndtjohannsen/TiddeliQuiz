@@ -241,7 +241,7 @@ export function NewSubjectForm(props: {
   )
 }
 
-/** Edit prompt, options, and source. Name is renamed in a popup. */
+/** Edit name, prompt, options, and source. */
 export function EditSubjectForm(props: {
   chrome: 'admin' | 'player'
   topic: Topic
@@ -261,6 +261,13 @@ export function EditSubjectForm(props: {
       }}
     >
       {props.children}
+      <Field label={admin ? strings.topicName : strings.myTopicName} hint={admin ? strings.topicNameHint : strings.myTopicNameHint}>
+        <input
+          className={inputClass}
+          value={props.topic.name}
+          onChange={(e) => props.onPatch({ name: e.target.value })}
+        />
+      </Field>
       <Field label={admin ? strings.topicOptions : strings.myTopicOptions}>
         <input
           className={inputClass}

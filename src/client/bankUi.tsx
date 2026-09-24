@@ -208,6 +208,7 @@ export function TopicBankScreen(props: {
   onRename: () => void
   onEditPrompt: () => void
   onGenerateSelected: () => void
+  onEditSelected?: () => void
   children?: ReactNode
 }) {
   const admin = props.chrome === 'admin'
@@ -219,12 +220,30 @@ export function TopicBankScreen(props: {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="text-lg font-medium">{props.topic.name}</h2>
         <div className="flex shrink-0 gap-1">
-          <button type="button" className={btnLink} onClick={props.onRename}>
-            {admin ? strings.rename : strings.myRename}
-          </button>
-          <button type="button" className={btnLink} onClick={props.onEditPrompt}>
-            {admin ? strings.editPrompt : strings.myEditPrompt}
-          </button>
+          {admin ? (
+            <button type="button" className={btnLink} onClick={props.onEditPrompt}>
+              {strings.editSubject}
+            </button>
+          ) : (
+            <>
+              <button type="button" className={btnLink} onClick={props.onRename}>
+                {strings.myRename}
+              </button>
+              <button type="button" className={btnLink} onClick={props.onEditPrompt}>
+                {strings.myEditPrompt}
+              </button>
+            </>
+          )}
+          {admin && props.onEditSelected ? (
+            <button
+              type="button"
+              className={`${btnLink} disabled:opacity-50`}
+              disabled={generateBusy || props.selectedDifficulties.length === 0}
+              onClick={props.onEditSelected}
+            >
+              {strings.editSelected}
+            </button>
+          ) : null}
           <button
             type="button"
             className={`${btnLink} disabled:opacity-50`}
@@ -274,6 +293,8 @@ export function BankQuestionList(props: {
   onToggle: (id: string) => void
   onToggleAllFiltered: () => void
   onEdit?: (row: StoredQuestion) => void
+  /** Shown on each row when the list mixes several difficulties. */
+  difficultyName?: (row: StoredQuestion) => string
   onRemoveOne: (row: StoredQuestion) => void
   onRemoveSelected: () => void
   onRemoveAll: () => void
@@ -349,6 +370,7 @@ export function BankQuestionList(props: {
               <div className="min-w-0 flex-1 py-2 pr-2 text-sm">
                 {row.question}
                 <span className="mt-1 block text-xs text-slate-400">
+                  {props.difficultyName ? `${props.difficultyName(row)} · ` : ''}
                   {correct}: {row.options[row.correctIndex] || '—'}
                 </span>
               </div>

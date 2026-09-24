@@ -65,6 +65,8 @@ export function useAdminFolders(opts: {
   >(null)
   const [topicRenameId, setTopicRenameId] = useState('')
   const [topicRenameDraft, setTopicRenameDraft] = useState('')
+  /** Where Edit subject returns: the subject list, or that subject's bank. */
+  const [subjectEditBack, setSubjectEditBack] = useState<'subjects' | 'questions'>('questions')
 
   async function catalogJson<T>(method: string, path: string, body?: unknown): Promise<T | null> {
     return adminCatalogJson<T>(
@@ -236,6 +238,13 @@ export function useAdminFolders(opts: {
     setTopicRenameDraft('')
   }
 
+  function openEditSubject(id: string, back: 'subjects' | 'questions') {
+    setSelectedTopicId(id)
+    setSubjectEditBack(back)
+    setLevel('edit-subject')
+    setError('')
+  }
+
   async function saveTopic() {
     if (!config || !selectedTopic) {
       return
@@ -258,7 +267,7 @@ export function useAdminFolders(opts: {
       topics: config.topics.map((t) => (t.id === data.topic.id ? data.topic : t)),
     })
     setSelectedTopicId(data.topic.id)
-    setLevel('questions')
+    setLevel(subjectEditBack)
   }
 
   function patchCategory(id: string, name: string) {
@@ -439,7 +448,7 @@ export function useAdminFolders(opts: {
   async function cancelEditSubject() {
     setError('')
     await reloadActiveCatalog()
-    setLevel('questions')
+    setLevel(subjectEditBack)
   }
 
   const filteredCategories = useMemo(() => {
@@ -493,6 +502,7 @@ export function useAdminFolders(opts: {
     confirmNewSubject,
     goSubjects,
     patchTopic,
+    openEditSubject,
     saveTopic,
     startRenameTopic,
     saveTopicRename,

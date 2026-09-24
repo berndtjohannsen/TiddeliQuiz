@@ -20,12 +20,10 @@ export default function AdminPage() {
     logLines,
     message,
     error,
-    setError,
     tab,
     catalogOwner,
     playerUsers,
     level,
-    setLevel,
     query,
     setQuery,
     renameDraft,
@@ -38,6 +36,7 @@ export default function AdminPage() {
     toggleGenerateDifficulty,
     generatingDifficulty,
     selectedDifficulty,
+    listDifficulties,
     bankQuestions,
     questionDraft,
     userScope,
@@ -80,6 +79,7 @@ export default function AdminPage() {
     confirmNewSubject,
     goSubjects,
     patchTopic,
+    openEditSubject,
     saveTopic,
     startRenameTopic,
     saveTopicRename,
@@ -92,6 +92,7 @@ export default function AdminPage() {
     openGenerateAll,
     generateBank,
     openQuestionList,
+    openSelectedQuestions,
     openEditQuestion,
     startRemoveQuestion,
     toggleQuestionSelected,
@@ -212,10 +213,7 @@ export default function AdminPage() {
                 onConfirmNewSubject={() => void confirmNewSubject()}
                 onGoSubjects={goSubjects}
                 onPatchTopic={patchTopic}
-                onEditSubject={() => {
-                  setLevel('edit-subject')
-                  setError('')
-                }}
+                onEditSubject={openEditSubject}
                 onStartRenameTopic={startRenameTopic}
                 topicRenameDraft={topicRenameDraft}
                 onTopicRenameDraft={setTopicRenameDraft}
@@ -228,6 +226,7 @@ export default function AdminPage() {
                 onGenerateAll={openGenerateAll}
                 onGenerateBank={(d) => void generateBank(d)}
                 onOpenQuestionList={(d) => void openQuestionList(d)}
+                onEditSelected={() => void openSelectedQuestions()}
                 onAskClearQuestions={askClearQuestions}
                 onAskClearDifficulty={askClearDifficulty}
                 onClearQuestions={() => {
@@ -245,7 +244,7 @@ export default function AdminPage() {
                   userScope={userScope}
                   category={selectedCategory}
                   topic={selectedTopic}
-                  difficulty={selectedDifficulty}
+                  difficulties={listDifficulties.length ? listDifficulties : [selectedDifficulty]}
                   query={query}
                   onQuery={setQuery}
                   generateCount={generateCount}

@@ -54,6 +54,8 @@ export const strings = {
   categorySubjects: '{count} subjects',
   addCategory: 'Add category',
   edit: 'Edit',
+  editSubject: 'Edit subject',
+  editSelected: 'Edit selected',
   rename: 'Rename',
   renameSubject: 'Rename subject',
   editPrompt: 'Edit prompt',

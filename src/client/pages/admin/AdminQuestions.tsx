@@ -23,7 +23,7 @@ export function AdminQuestions(props: {
   userScope: UserScope
   category: Category
   topic: Topic
-  difficulty: Difficulty
+  difficulties: Difficulty[]
   query: string
   onQuery: (value: string) => void
   generateCount: number
@@ -54,10 +54,13 @@ export function AdminQuestions(props: {
   onConfirmRemove: () => void
   onCancelRemove: () => void
 }) {
+  const levels = props.difficulties.length ? props.difficulties : (['medium'] as Difficulty[])
+  const mixed = levels.length > 1
+  const levelLabel = levels.map((id) => difficultyLabel(id)).join(' · ')
   const root = { label: strings.adminTabCategories, onClick: props.onHome }
   const cat = { label: props.category.name, onClick: props.onSubjects }
   const topic = { label: props.topic.name, onClick: () => props.onQuestions(props.topic.id) }
-  const diff = { label: difficultyLabel(props.difficulty), onClick: props.onQuestionList }
+  const diff = { label: levelLabel, onClick: props.onQuestionList }
   const removeCount = props.pendingRemoveIds.length
   const removeDialog =
     removeCount > 0 ? (
@@ -84,32 +87,36 @@ export function AdminQuestions(props: {
       <div className="flex flex-col gap-4">
         <Breadcrumb chrome="admin" userScope={props.userScope} parts={[root, cat, topic, { label: diff.label }]} />
         <h2 className="text-lg font-medium">
-          {props.topic.name} · {difficultyLabel(props.difficulty)}
+          {props.topic.name} · {levelLabel}
         </h2>
-        <Field label={strings.bankAddCount}>
-          <select
-            className={inputClass}
-            value={props.generateCount}
-            disabled={Boolean(props.generatingDifficulty)}
-            onChange={(e) => props.onGenerateCount(Number(e.target.value))}
-          >
-            {[5, 10, 15, 20].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <button
-          type="button"
-          className={`${btnSecondary} self-start`}
-          disabled={Boolean(props.generatingDifficulty)}
-          onClick={props.onGenerate}
-        >
-          {props.generatingDifficulty === props.difficulty
-            ? strings.bankGenerating
-            : strings.bankGenerate}
-        </button>
+        {mixed ? null : (
+          <>
+            <Field label={strings.bankAddCount}>
+              <select
+                className={inputClass}
+                value={props.generateCount}
+                disabled={Boolean(props.generatingDifficulty)}
+                onChange={(e) => props.onGenerateCount(Number(e.target.value))}
+              >
+                {[5, 10, 15, 20].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <button
+              type="button"
+              className={`${btnSecondary} self-start`}
+              disabled={Boolean(props.generatingDifficulty)}
+              onClick={props.onGenerate}
+            >
+              {props.generatingDifficulty === levels[0]
+                ? strings.bankGenerating
+                : strings.bankGenerate}
+            </button>
+          </>
+        )}
         <BankNotice
           generatingDifficulty={props.generatingDifficulty}
           generatingAll={false}
@@ -126,6 +133,7 @@ export function AdminQuestions(props: {
           onToggle={props.onToggle}
           onToggleAllFiltered={props.onToggleAllFiltered}
           onEdit={props.onEdit}
+          difficultyName={mixed ? (row) => difficultyLabel(row.difficulty) : undefined}
           onRemoveOne={props.onStartRemove}
           onRemoveSelected={props.onRemoveSelected}
           onRemoveAll={props.onRemoveAll}
