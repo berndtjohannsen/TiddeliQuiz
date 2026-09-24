@@ -406,9 +406,20 @@ export function dbLoadQuestions(filter: {
     params.push(filter.topicId)
   }
   if (filter.difficulty) {
-    // New rows can play at every level; older rows stay on their stored difficulty.
-    where.push(`(q.difficulty = ? OR json_extract(q.meta_json, '$.playAllDifficulties') = 1)`)
-    params.push(filter.difficulty)
+    // Older rows stay on their stored difficulty. New rows play everywhere except levels the admin removed.
+    where.push(
+      `(
+        (q.difficulty = ? AND IFNULL(json_extract(q.meta_json, '$.playAllDifficulties'), 0) != 1)
+        OR (
+          json_extract(q.meta_json, '$.playAllDifficulties') = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM json_each(q.meta_json, '$.hiddenDifficulties') AS hidden
+            WHERE hidden.value = ?
+          )
+        )
+      )`,
+    )
+    params.push(filter.difficulty, filter.difficulty)
   }
   if (filter.ownerType === 'user') {
     where.push(`q.owner_type = 'user' AND q.owner_id = ?`)
@@ -421,12 +432,21 @@ export function dbLoadQuestions(filter: {
   return rows.map((row) => mapQuestion(row, optionsFor(database, row.id)))
 }
 
-function metaPlayAll(raw: string | null) {
+function questionMeta(raw: string | null) {
   try {
-    return (JSON.parse(raw || '{}') as { playAllDifficulties?: boolean }).playAllDifficulties === true
+    return JSON.parse(raw || '{}') as { playAllDifficulties?: boolean; hiddenDifficulties?: string[] }
   } catch {
-    return false
+    return {}
   }
+}
+
+function metaPlayAll(raw: string | null) {
+  return questionMeta(raw).playAllDifficulties === true
+}
+
+function metaHides(raw: string | null, difficulty: string) {
+  const hidden = questionMeta(raw).hiddenDifficulties
+  return Array.isArray(hidden) && hidden.includes(difficulty)
 }
 
 const COUNT_DIFFICULTIES: Difficulty[] = ['hard', 'medium', 'easy', 'children']
@@ -445,7 +465,7 @@ export function dbBankCounts(ownerType: 'platform' | 'user', ownerId?: string): 
   for (const row of rows) {
     const playAll = metaPlayAll(row.metaJson)
     for (const difficulty of COUNT_DIFFICULTIES) {
-      if (!playAll && row.difficulty !== difficulty) {
+      if (playAll ? metaHides(row.metaJson, difficulty) : row.difficulty !== difficulty) {
         continue
       }
       const key = `${row.topicId}\t${difficulty}`
@@ -534,6 +554,51 @@ export function dbDeleteQuestions(ids: string[]): number {
   return tx()
 }
 
+/** Drop older rows stored only at this level. Shared rows stay, but stop playing here. */
+function hideOrDeleteDifficulty(
+  database: Database.Database,
+  topicId: string,
+  ownerType: 'platform' | 'user',
+  ownerId: string | undefined,
+  difficulty: Difficulty,
+) {
+  const ownerSql =
+    ownerType === 'user'
+      ? `topic_id = ? AND owner_type = 'user' AND owner_id = ?`
+      : `topic_id = ? AND owner_type = 'platform'`
+  const ownerParams = ownerType === 'user' ? [topicId, ownerId ?? ''] : [topicId]
+  const tx = database.transaction(() => {
+    const removed = database
+      .prepare(
+        `DELETE FROM questions WHERE ${ownerSql} AND difficulty = ? AND IFNULL(json_extract(meta_json, '$.playAllDifficulties'), 0) != 1`,
+      )
+      .run(...ownerParams, difficulty).changes
+    const shared = database
+      .prepare(
+        `SELECT id, meta_json AS metaJson FROM questions WHERE ${ownerSql} AND json_extract(meta_json, '$.playAllDifficulties') = 1`,
+      )
+      .all(...ownerParams) as { id: string; metaJson: string }[]
+    const update = database.prepare(`UPDATE questions SET meta_json = ?, updated_at = ? WHERE id = ?`)
+    const del = database.prepare(`DELETE FROM questions WHERE id = ?`)
+    let hidden = 0
+    for (const row of shared) {
+      if (metaHides(row.metaJson, difficulty)) {
+        continue
+      }
+      const meta = questionMeta(row.metaJson)
+      const nextHidden = [...new Set([...(meta.hiddenDifficulties ?? []), difficulty])]
+      if (nextHidden.length >= COUNT_DIFFICULTIES.length) {
+        del.run(row.id)
+      } else {
+        update.run(JSON.stringify({ ...meta, hiddenDifficulties: nextHidden }), nowIso(), row.id)
+      }
+      hidden += 1
+    }
+    return removed + hidden
+  })
+  return tx()
+}
+
 export function dbDeleteQuestionsForTopic(
   topicId: string,
   ownerType: 'platform' | 'user',
@@ -541,22 +606,13 @@ export function dbDeleteQuestionsForTopic(
   difficulty?: Difficulty,
 ): number {
   const database = openCatalogDb()
+  if (difficulty) {
+    return hideOrDeleteDifficulty(database, topicId, ownerType, ownerId, difficulty)
+  }
   if (ownerType === 'user') {
-    if (difficulty) {
-      return database
-        .prepare(
-          `DELETE FROM questions WHERE topic_id = ? AND owner_type = 'user' AND owner_id = ? AND difficulty = ?`,
-        )
-        .run(topicId, ownerId ?? '', difficulty).changes
-    }
     return database
       .prepare(`DELETE FROM questions WHERE topic_id = ? AND owner_type = 'user' AND owner_id = ?`)
       .run(topicId, ownerId ?? '').changes
-  }
-  if (difficulty) {
-    return database
-      .prepare(`DELETE FROM questions WHERE topic_id = ? AND owner_type = 'platform' AND difficulty = ?`)
-      .run(topicId, difficulty).changes
   }
   return database.prepare(`DELETE FROM questions WHERE topic_id = ? AND owner_type = 'platform'`).run(topicId)
     .changes
