@@ -7,8 +7,11 @@ dist/
 .env.*
 !.env.example
 
-# Local JSON store (catalog, questions, users, keys, play history)
+# Local JSON store (users, keys, play history)
 data/*.json
+
+# Local SQLite catalog (categories, topics, questions; includes WAL files)
+data/*.sqlite*
 
 # Personal notes, not part of the product
 ignore.txt

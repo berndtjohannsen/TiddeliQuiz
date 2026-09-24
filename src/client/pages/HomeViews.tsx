@@ -1,5 +1,5 @@
 import type { FormEvent, ReactNode } from 'react'
-import type { Category, Difficulty, Topic } from '../../shared/types'
+import type { Category, PlayDifficulty, Topic } from '../../shared/types'
 import { APP_VERSION } from '../../version'
 import { difficultyLabel } from '../catalogUi'
 import { strings } from '../strings'
@@ -253,7 +253,7 @@ export function PlayHeader(props: {
   )
 }
 
-/** Category / subject / count / difficulty form. */
+/** Category / subject / difficulty / count form. */
 export function StartForm(props: {
   isGuest: boolean
   categories: Category[]
@@ -267,15 +267,17 @@ export function StartForm(props: {
   busy: boolean
   count: number
   countChoices: number[]
-  difficulty: Difficulty
-  guestDifficulties: Difficulty[]
+  difficulty: PlayDifficulty
+  guestDifficulties: PlayDifficulty[]
   startError: string
+  bankExhausted: boolean
   canStart: boolean
   onPickCategory: (id: string) => void
   onPickTopic: (id: string) => void
   onCount: (n: number) => void
-  onDifficulty: (d: Difficulty) => void
+  onDifficulty: (d: PlayDifficulty) => void
   onMine: () => void
+  onReplayBank: () => void
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
 }) {
   return (
@@ -330,6 +332,23 @@ export function StartForm(props: {
       ) : null}
 
       <label className="flex flex-col gap-1 text-sm">
+        {strings.difficulty}
+        <select
+          name="difficulty"
+          value={props.difficulty}
+          disabled={props.busy || !props.guestDifficulties.length}
+          className="rounded bg-slate-800 p-2"
+          onChange={(e) => props.onDifficulty(e.target.value as PlayDifficulty)}
+        >
+          {props.guestDifficulties.map((d) => (
+            <option key={d} value={d}>
+              {difficultyLabel(d)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
         {strings.questions}
         <select
           name="count"
@@ -346,32 +365,26 @@ export function StartForm(props: {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-sm">
-        {strings.difficulty}
-        <select
-          name="difficulty"
-          value={props.difficulty}
-          disabled={props.busy || !props.guestDifficulties.length}
-          className="rounded bg-slate-800 p-2"
-          onChange={(e) => props.onDifficulty(e.target.value as Difficulty)}
-        >
-          {props.guestDifficulties.map((d) => (
-            <option key={d} value={d}>
-              {difficultyLabel(d)}
-            </option>
-          ))}
-        </select>
-      </label>
-
       {props.startError ? <p className="text-sm text-red-400">{props.startError}</p> : null}
 
-      <button
-        type="submit"
-        className="rounded bg-sky-600 px-4 py-2 font-medium disabled:opacity-50"
-        disabled={!props.canStart}
-      >
-        {strings.start}
-      </button>
+      {props.bankExhausted ? (
+        <button
+          type="button"
+          className="rounded bg-sky-600 px-4 py-2 font-medium disabled:opacity-50"
+          disabled={props.busy || !props.topicId}
+          onClick={props.onReplayBank}
+        >
+          {strings.replayBank}
+        </button>
+      ) : (
+        <button
+          type="submit"
+          className="rounded bg-sky-600 px-4 py-2 font-medium disabled:opacity-50"
+          disabled={!props.canStart}
+        >
+          {strings.start}
+        </button>
+      )}
     </form>
   )
 }

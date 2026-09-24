@@ -3,7 +3,7 @@ import { Results } from './Results'
 import { AdSlot, ChooseGate, PlayHeader, StartForm, UserLoginGate } from './HomeViews'
 import { useHomePage } from './useHomePage'
 
-/** Start: Logga in or guest, then pick category, topic, count, difficulty. */
+/** Start: Logga in or guest, then pick category, topic, difficulty, count. */
 export default function HomePage() {
   const home = useHomePage()
 
@@ -56,12 +56,14 @@ export default function HomePage() {
           difficulty={home.difficulty}
           guestDifficulties={home.guestDifficulties}
           startError={home.startError}
+          bankExhausted={home.bankExhausted}
           canStart={home.canStart}
           onPickCategory={home.onPickCategory}
           onPickTopic={home.onPickTopic}
           onCount={home.onCount}
           onDifficulty={home.onDifficulty}
           onMine={home.openMine}
+          onReplayBank={() => void home.onReplayBank()}
           onSubmit={(e) => void home.onStart(e)}
         />
       )}

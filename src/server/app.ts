@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
-import type { Difficulty } from '../shared/types'
+import type { PlayDifficulty } from '../shared/types'
 import { mountAdminApi } from './adminApi'
 import { mountCatalogMutations } from './catalogMutations'
 import { isAdmin, playerAccount } from './httpAuth'
@@ -89,11 +89,12 @@ app.post('/api/quiz/start', async (c) => {
     return c.json({ error: 'Unknown topic' }, 400)
   }
   const rawCount = Number(body.count)
-  const stepped = Math.round((Number.isFinite(rawCount) ? rawCount : 10) / 5) * 5
-  const count = Math.min(50, Math.max(5, stepped))
-  const difficulty = difficulties.includes(body.difficulty as Difficulty)
-    ? (body.difficulty as Difficulty)
-    : 'medium'
+  const whole = Number.isFinite(rawCount) ? Math.round(rawCount) : 10
+  const count = Math.min(50, Math.max(5, whole))
+  const difficulty: PlayDifficulty =
+    body.difficulty === 'all' || difficulties.includes(body.difficulty as (typeof difficulties)[number])
+      ? (body.difficulty as PlayDifficulty)
+      : 'medium'
   const exclude = Array.isArray(body.exclude)
     ? body.exclude
         .filter((q): q is string => typeof q === 'string')

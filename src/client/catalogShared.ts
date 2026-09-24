@@ -1,4 +1,4 @@
-import type { BankCount, Category, Difficulty, SourceFocus, Topic } from '../shared/types'
+import type { BankCount, Category, Difficulty, PlayDifficulty, SourceFocus, Topic } from '../shared/types'
 import { strings } from './strings'
 
 export const inputClass = 'rounded bg-slate-800 p-2'
@@ -62,8 +62,21 @@ export function isDraft(id: string) {
   return id.startsWith('draft-')
 }
 
+/** Browser UUID. randomUUID is missing on plain HTTP (LAN IP / container hostname). */
+export function newId() {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 export function emptyCategory(kind: 'platform' | 'user' = 'platform'): Category {
-  const row: Category = { id: `draft-${crypto.randomUUID()}`, name: '' }
+  const row: Category = { id: `draft-${newId()}`, name: '' }
   if (kind === 'user') {
     row.ownerType = 'user'
   }
@@ -71,7 +84,7 @@ export function emptyCategory(kind: 'platform' | 'user' = 'platform'): Category 
 }
 
 export function emptyTopic(categoryId: string): Topic {
-  return { id: `draft-${crypto.randomUUID()}`, categoryId, name: '', optionCount: 4, prompt: '' }
+  return { id: `draft-${newId()}`, categoryId, name: '', optionCount: 4, prompt: '' }
 }
 
 export function fillText(template: string, values: Record<string, string | number>) {
@@ -100,7 +113,10 @@ export function bankCountForCategory(counts: BankCount[] | undefined, topics: To
     .reduce((sum, t) => sum + bankCountForTopic(counts, t.id), 0)
 }
 
-export function difficultyLabel(id: Difficulty) {
+export function difficultyLabel(id: PlayDifficulty) {
+  if (id === 'all') {
+    return strings.difficultyAll
+  }
   return bankDifficulties.find((d) => d.id === id)?.label ?? id
 }
 

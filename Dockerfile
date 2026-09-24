@@ -1,6 +1,9 @@
-# Build the Vite UI, then a small image that runs the Node API and serves the UI.
+# Native module better-sqlite3 needs compilers if a prebuild is missing.
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ \
+ && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY index.html tsconfig.json vite.config.ts ./
@@ -13,9 +16,15 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 # Shown in `docker inspect`; bump when the start command changes so stale :latest is obvious.
-ENV TIDDELI_IMAGE=2026-09-20-logs
+ENV TIDDELI_IMAGE=2026-09-21-sqlite
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# better-sqlite3 is native; compilers are only needed at install time.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ \
+ && npm ci --omit=dev \
+ && apt-get purge -y python3 make g++ \
+ && apt-get autoremove -y \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/dist ./dist
 COPY src ./src
 COPY data/.gitkeep ./data/.gitkeep

@@ -6,10 +6,12 @@ import { app } from './app'
 import { getPort, loadEnv } from './config'
 import { log, setLogLevel } from './log'
 import { abortAllGenerations } from './ai'
+import { openCatalogDb } from './catalogDb'
 import { loadLogLevel } from './store'
 
 loadEnv()
 setLogLevel(loadLogLevel())
+openCatalogDb()
 
 const port = getPort()
 const isProd = process.env.NODE_ENV === 'production'

@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { Difficulty, QuizAttempt } from '../shared/types'
+import type { PlayDifficulty, QuizAttempt } from '../shared/types'
 
 const attemptsFile = path.join(path.resolve(process.cwd(), 'data'), 'attempts.json')
 const MAX_USER_ATTEMPTS = 50
-const difficulties: Difficulty[] = ['hard', 'medium', 'easy', 'children']
+const playDifficulties: PlayDifficulty[] = ['hard', 'medium', 'easy', 'children', 'all']
 
 type StoredAttempt = QuizAttempt & { userId: string }
 
@@ -59,8 +59,8 @@ export function parseAttemptFields(body: {
   const categoryId = String(body.categoryId ?? '').trim()
   const categoryName = String(body.categoryName ?? '').trim()
   const topicName = String(body.topicName ?? '').trim()
-  const difficulty = difficulties.includes(body.difficulty as Difficulty)
-    ? (body.difficulty as Difficulty)
+  const difficulty = playDifficulties.includes(body.difficulty as PlayDifficulty)
+    ? (body.difficulty as PlayDifficulty)
     : null
   const count = asInt(body.count)
   if (!topicId || !categoryName || !topicName || !difficulty || count < 1 || count > 50) {

@@ -1,4 +1,4 @@
-import type { Category, Difficulty, QuizQuestion, QuizScore } from '../shared/types'
+import type { Category, Difficulty, PlayDifficulty, QuizQuestion, QuizScore } from '../shared/types'
 import { strings } from './strings'
 
 /** Browser store so /play does not call the AI again on reload. */
@@ -12,9 +12,25 @@ const SEEN_MAX = 40
 /** Round size steps. Guest dropdowns only list values the bank can fill. */
 export const COUNT_CHOICES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 export const DIFFICULTY_ORDER: Difficulty[] = ['hard', 'medium', 'easy', 'children']
+const ROUND_COUNT_MAX = 50
+
+/** Steps of 5, plus the exact bank size when it is 5–50 and not already a step. */
+export function roundCountChoices(available: number) {
+  const choices = COUNT_CHOICES.filter((n) => n <= available)
+  const exact = Math.min(ROUND_COUNT_MAX, Math.floor(available))
+  if (exact >= 5 && !choices.includes(exact)) {
+    choices.push(exact)
+    choices.sort((a, b) => a - b)
+  }
+  return choices
+}
 
 export function isDifficulty(value?: string): value is Difficulty {
   return value === 'hard' || value === 'medium' || value === 'easy' || value === 'children'
+}
+
+export function isPlayDifficulty(value?: string): value is PlayDifficulty {
+  return value === 'all' || isDifficulty(value)
 }
 
 export type PlayerSession = { role: 'guest' | 'user'; username: string }
@@ -37,6 +53,8 @@ export type StoredRound = {
   shortNotice?: string
   /** Set after the summary is saved so a remount does not write twice. */
   attemptSaved?: boolean
+  /** Unseen questions left in this subject after the current draw. */
+  unseenLeft?: number
 }
 
 export function emptyOutcomes(count: number): QuestionOutcome[] {
@@ -81,6 +99,7 @@ export function readStoredRound(): StoredRound | null {
       requestedCount: data.requestedCount,
       shortNotice: data.shortNotice ?? '',
       attemptSaved: data.attemptSaved === true,
+      unseenLeft: typeof data.unseenLeft === 'number' ? data.unseenLeft : undefined,
     }
   } catch {
     return null
@@ -148,6 +167,23 @@ export function rememberSeen(topicId: string, questions: QuizQuestion[]) {
   sessionStorage.setItem(SEEN_KEY, JSON.stringify(all))
 }
 
+/** Forget seen texts for one subject so the player can draw the bank again. */
+export function clearSeen(topicId: string) {
+  try {
+    const raw = sessionStorage.getItem(SEEN_KEY)
+    const all = raw ? (JSON.parse(raw) as Record<string, string[]>) : {}
+    delete all[topicId]
+    sessionStorage.setItem(SEEN_KEY, JSON.stringify(all))
+  } catch {
+    sessionStorage.removeItem(SEEN_KEY)
+  }
+}
+
+/** Unseen left after this draw. `available` is the unseen pool before the pick. */
+export function unseenLeftAfterDraw(available: number, drawn: number) {
+  return Math.max(0, available - drawn)
+}
+
 /** Clears play session only. Guest results in localStorage stay. */
 export function clearPlayerContext() {
   sessionStorage.removeItem(SESSION_KEY)
@@ -159,8 +195,30 @@ export function isPrivateCategory(c: Pick<Category, 'ownerType'>) {
   return c.ownerType === 'user'
 }
 
-export function bankAvailable(counts: { topicId: string; difficulty: Difficulty; count: number }[], topicId: string, difficulty: Difficulty) {
+export function bankAvailable(
+  counts: { topicId: string; difficulty: Difficulty; count: number }[],
+  topicId: string,
+  difficulty: PlayDifficulty,
+) {
+  if (difficulty === 'all') {
+    return DIFFICULTY_ORDER.reduce(
+      (sum, d) => sum + (counts.find((row) => row.topicId === topicId && row.difficulty === d)?.count ?? 0),
+      0,
+    )
+  }
   return counts.find((row) => row.topicId === topicId && row.difficulty === difficulty)?.count ?? 0
+}
+
+/** Playable levels plus Alla when at least one level has enough questions. */
+export function playDifficultyChoices(
+  counts: { topicId: string; difficulty: Difficulty; count: number }[],
+  topicId: string,
+): PlayDifficulty[] {
+  const diffs: PlayDifficulty[] = DIFFICULTY_ORDER.filter((d) => bankAvailable(counts, topicId, d) >= 5)
+  if (diffs.length) {
+    diffs.push('all')
+  }
+  return diffs
 }
 
 export type QuizStartResult =
@@ -171,7 +229,7 @@ export type QuizStartResult =
 export async function fetchQuizRound(
   topicId: string,
   count: number,
-  difficulty: Difficulty,
+  difficulty: PlayDifficulty,
   signal?: AbortSignal,
 ): Promise<QuizStartResult> {
   const res = await fetch('/api/quiz/start', {

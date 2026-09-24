@@ -3,13 +3,15 @@ import type { QuizQuestion, QuizScore } from '../../shared/types'
 import { recordFinishedAttempt } from '../attemptHistory'
 import { difficultyLabel, fillText } from '../catalogUi'
 import {
+  clearSeen,
   downloadQuizCopy,
   emptyOutcomes,
   fetchQuizRound,
   hasPlayerSession,
-  isDifficulty,
+  isPlayDifficulty,
   readStoredRound,
   tallyOutcomes,
+  unseenLeftAfterDraw,
   writeStoredRound,
   type QuestionOutcome,
 } from '../playerSession'
@@ -92,6 +94,7 @@ export function usePlayPage() {
   const [saveError, setSaveError] = useState('')
   const [shortNotice, setShortNotice] = useState(stored?.shortNotice ?? '')
   const [moreError, setMoreError] = useState('')
+  const [bankExhausted, setBankExhausted] = useState(stored?.unseenLeft === 0)
   const [moreBusy, setMoreBusy] = useState(false)
   const savingAttempt = useRef(false)
 
@@ -192,23 +195,28 @@ export function usePlayPage() {
   }
 
   /** New draw of unseen questions. Same subject, difficulty, and original requested count. */
-  async function onMoreQuestions() {
+  async function drawMore(resetSeen: boolean) {
     const latest = readStoredRound()
     const topicId = latest?.topicId
     const difficulty = latest?.difficulty ?? heading.difficulty
     const requested = latest?.requestedCount ?? questions.length
-    if (!topicId || !isDifficulty(difficulty)) {
+    if (!topicId || !isPlayDifficulty(difficulty)) {
       setMoreError(strings.startFailed)
       return
+    }
+    if (resetSeen) {
+      clearSeen(topicId)
     }
     setMoreBusy(true)
     setMoreError('')
     try {
       const data = await fetchQuizRound(topicId, requested, difficulty)
       if ('error' in data) {
+        const exhausted = data.error === 'no_new_questions'
+        setBankExhausted(exhausted)
         setMoreError(
-          data.error === 'no_new_questions'
-            ? strings.moreQuestionsNone
+          exhausted
+            ? strings.replayBankHint
             : data.error === 'bank_too_small'
               ? fillText(strings.bankTooSmall, {
                   available: data.available ?? 0,
@@ -218,6 +226,7 @@ export function usePlayPage() {
         )
         return
       }
+      const left = unseenLeftAfterDraw(data.available, data.questions.length)
       const notice =
         data.questions.length < data.requested
           ? fillText(strings.roundShort, {
@@ -236,7 +245,9 @@ export function usePlayPage() {
         requestedCount: data.requested,
         shortNotice: notice,
         attemptSaved: false,
+        unseenLeft: left,
       })
+      setBankExhausted(left === 0)
       setSaveError('')
       setShortNotice(notice)
       setQuestions(data.questions)
@@ -253,6 +264,14 @@ export function usePlayPage() {
     } finally {
       setMoreBusy(false)
     }
+  }
+
+  function onMoreQuestions() {
+    return drawMore(false)
+  }
+
+  function onReplayBank() {
+    return drawMore(true)
   }
 
   function onRetryAll() {
@@ -287,7 +306,7 @@ export function usePlayPage() {
     downloadQuizCopy({
       categoryName: heading.categoryName,
       topicName: heading.topicName,
-      difficultyLabel: isDifficulty(heading.difficulty) ? difficultyLabel(heading.difficulty) : '',
+      difficultyLabel: isPlayDifficulty(heading.difficulty) ? difficultyLabel(heading.difficulty) : '',
       questions,
       forTeacher,
     })
@@ -303,7 +322,7 @@ export function usePlayPage() {
       return
     }
     const difficulty = latest?.difficulty ?? heading.difficulty
-    if (!latest?.topicId || !isDifficulty(difficulty)) {
+    if (!latest?.topicId || !isPlayDifficulty(difficulty)) {
       return
     }
     savingAttempt.current = true
@@ -362,6 +381,7 @@ export function usePlayPage() {
     saveError,
     shortNotice,
     moreError,
+    bankExhausted,
     moreBusy,
     outcomes,
     onShowOptions: () => setShowOptions(true),
@@ -371,6 +391,7 @@ export function usePlayPage() {
     onQuit,
     onDownloadCopy,
     onMoreQuestions,
+    onReplayBank,
     onRetryAll,
     onRetryFailed,
   }

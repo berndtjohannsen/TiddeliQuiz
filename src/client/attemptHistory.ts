@@ -1,4 +1,5 @@
 import type { QuizAttempt } from '../shared/types'
+import { newId } from './catalogShared'
 import { SESSION_KEY } from './playerSession'
 
 const GUEST_KEY = 'tiddeli-guest-attempts'
@@ -34,7 +35,7 @@ export function listGuestAttempts(): QuizAttempt[] {
 export function appendGuestAttempt(fields: Omit<QuizAttempt, 'id' | 'finishedAt'>): QuizAttempt {
   const row: QuizAttempt = {
     ...fields,
-    id: crypto.randomUUID(),
+    id: newId(),
     finishedAt: new Date().toISOString(),
   }
   writeGuestAttempts([row, ...readGuestAttempts()].slice(0, MAX_GUEST))

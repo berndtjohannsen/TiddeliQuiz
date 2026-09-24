@@ -1,9 +1,25 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { AiSettingsPublic, BankCount, Category, Difficulty, LogLevel, QuizQuestion, SourceFocus, StoredQuestion, Topic } from '../shared/types'
+import type { AiSettingsPublic, BankCount, Category, Difficulty, LogLevel, PlayDifficulty, QuizQuestion, SourceFocus, StoredQuestion, Topic } from '../shared/types'
+import {
+  dbBankCounts,
+  dbDeleteCategory,
+  dbDeleteQuestion,
+  dbDeleteQuestions,
+  dbDeleteQuestionsForTopic,
+  dbDeleteTopic,
+  dbGetQuestion,
+  dbInsertCategory,
+  dbInsertQuestion,
+  dbInsertTopic,
+  dbLoadCatalog,
+  dbLoadQuestions,
+  dbUpdateCategory,
+  dbUpdateQuestion,
+  dbUpdateTopic,
+} from './catalogDb'
 
 const dataDir = path.resolve(process.cwd(), 'data')
-const domainsFile = path.join(dataDir, 'domains.json')
 const usersFile = path.join(dataDir, 'users.json')
 const aiFile = path.join(dataDir, 'ai-config.json')
 const secretsFile = path.join(dataDir, 'secrets.json')
@@ -54,30 +70,6 @@ type CatalogFile = {
   topics: Topic[]
 }
 
-const emptyCatalog: CatalogFile = { categories: [], topics: [] }
-
-/** URL id from a name. å/ä/ö become a/o so Swedish names stay readable. */
-function slugFromName(name: string) {
-  return name
-    .toLowerCase()
-    .replace(/[åä]/g, 'a')
-    .replace(/ö/g, 'o')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
-function uniqueSlug(name: string, used: Set<string>, fallback: string) {
-  const base = slugFromName(name) || fallback
-  let id = base
-  let n = 2
-  while (used.has(id)) {
-    id = `${base}-${n}`
-    n += 1
-  }
-  used.add(id)
-  return id
-}
-
 /** Platform if owner is missing. Private folders set ownerType user. */
 export function isPlatformCategory(c: Pick<Category, 'ownerType'>): boolean {
   return c.ownerType !== 'user'
@@ -118,43 +110,9 @@ function parseCategory(raw: Partial<Category>): Category {
   return row
 }
 
-function parseCatalog(raw: unknown): CatalogFile {
-  if (Array.isArray(raw)) {
-    const used = new Set<string>()
-    const categoryId = uniqueSlug('Övrigt', used, 'ovrigt')
-    const topics = (raw as Array<Partial<Topic>>).map((d, i) => {
-      const existing = d.id ? String(d.id) : ''
-      const id =
-        existing && !used.has(existing)
-          ? (used.add(existing), existing)
-          : uniqueSlug(String(d.name ?? ''), used, `topic-${i + 1}`)
-      return parseTopic({
-        id,
-        categoryId,
-        name: String(d.name ?? ''),
-        optionCount: Math.max(2, Number(d.optionCount) || 4),
-        prompt: String(d.prompt ?? ''),
-        sourceUrl: d.sourceUrl,
-        sourceFocus: d.sourceFocus,
-      })
-    })
-    return { categories: [{ id: categoryId, name: 'Övrigt' }], topics }
-  }
-  const data = (raw ?? emptyCatalog) as Partial<CatalogFile>
-  return {
-    categories: Array.isArray(data.categories) ? data.categories.map((c) => parseCategory(c)) : [],
-    topics: Array.isArray(data.topics) ? data.topics.map((t) => parseTopic(t)) : [],
-  }
-}
-
-/** Read categories and topics from disk. File name stays domains.json. */
+/** Read categories and subjects from SQLite. */
 export function loadCatalog(): CatalogFile {
-  return parseCatalog(readJson<unknown>(domainsFile, emptyCatalog))
-}
-
-/** Replace the catalog on disk. */
-function saveCatalog(catalog: CatalogFile) {
-  writeJson(domainsFile, catalog)
+  return dbLoadCatalog()
 }
 
 /** Admin Categories: platform folders only. Private trees stay under Users. */
@@ -202,14 +160,11 @@ function stampNewCategory(name: string, owner: CatalogOwner): Category {
   return parseCategory({ id: crypto.randomUUID(), name })
 }
 
-/** Drop bank rows whose subject was removed. Topic ids are globally unique. */
-function deleteQuestionsForTopics(topicIds: string[]) {
-  const drop = new Set(topicIds)
-  if (!drop.size) {
-    return
+function ownerStamp(c: Category): { ownerType: 'platform' | 'user'; ownerId: string | null } {
+  if (c.ownerType === 'user' && c.ownerId) {
+    return { ownerType: 'user', ownerId: c.ownerId }
   }
-  const bank = loadBank()
-  saveBank({ questions: bank.questions.filter((q) => !drop.has(q.topicId)) })
+  return { ownerType: 'platform', ownerId: null }
 }
 
 export function addCategory(
@@ -220,10 +175,8 @@ export function addCategory(
   if (!trimmed) {
     return { error: 'empty' }
   }
-  const catalog = loadCatalog()
   const category = stampNewCategory(trimmed, owner)
-  catalog.categories.push(category)
-  saveCatalog(catalog)
+  dbInsertCategory(category)
   return { category }
 }
 
@@ -237,13 +190,12 @@ export function renameCategory(
     return { error: 'empty' }
   }
   const catalog = loadCatalog()
-  const index = catalog.categories.findIndex((c) => c.id === id && categoryOwnedBy(c, owner))
-  if (index < 0) {
+  const current = catalog.categories.find((c) => c.id === id && categoryOwnedBy(c, owner))
+  if (!current) {
     return { error: 'not_found' }
   }
-  const category = parseCategory({ ...catalog.categories[index], name: trimmed })
-  catalog.categories[index] = category
-  saveCatalog(catalog)
+  const category = parseCategory({ ...current, name: trimmed })
+  dbUpdateCategory(category)
   return { category }
 }
 
@@ -256,11 +208,7 @@ export function removeCategory(
   if (!cat) {
     return { error: 'not_found' }
   }
-  const topicIds = catalog.topics.filter((t) => t.categoryId === id).map((t) => t.id)
-  catalog.categories = catalog.categories.filter((c) => c.id !== id)
-  catalog.topics = catalog.topics.filter((t) => t.categoryId !== id)
-  saveCatalog(catalog)
-  deleteQuestionsForTopics(topicIds)
+  dbDeleteCategory(id)
   return { ok: true }
 }
 
@@ -293,8 +241,8 @@ export function addTopic(
     prompt,
     ...topicSourceFields(input),
   }
-  catalog.topics.push(topic)
-  saveCatalog(catalog)
+  const stamp = ownerStamp(cat)
+  dbInsertTopic(topic, stamp.ownerType, stamp.ownerId)
   return { topic }
 }
 
@@ -315,11 +263,10 @@ export function updateTopic(
     return { error: 'invalid' }
   }
   const catalog = loadCatalog()
-  const index = catalog.topics.findIndex((t) => t.id === id)
-  if (index < 0 || !topicOwnedBy(catalog, catalog.topics[index], owner)) {
+  const existing = catalog.topics.find((t) => t.id === id)
+  if (!existing || !topicOwnedBy(catalog, existing, owner)) {
     return { error: 'not_found' }
   }
-  const existing = catalog.topics[index]
   const topic: Topic = {
     id: existing.id,
     categoryId: existing.categoryId,
@@ -328,8 +275,9 @@ export function updateTopic(
     prompt,
     ...topicSourceFields(input),
   }
-  catalog.topics[index] = topic
-  saveCatalog(catalog)
+  const cat = catalog.categories.find((c) => c.id === existing.categoryId)
+  const stamp = cat ? ownerStamp(cat) : { ownerType: 'platform' as const, ownerId: null }
+  dbUpdateTopic(topic, stamp.ownerType, stamp.ownerId)
   return { topic }
 }
 
@@ -342,9 +290,7 @@ export function removeTopic(
   if (!topic || !topicOwnedBy(catalog, topic, owner)) {
     return { error: 'not_found' }
   }
-  catalog.topics = catalog.topics.filter((t) => t.id !== id)
-  saveCatalog(catalog)
-  deleteQuestionsForTopics([id])
+  dbDeleteTopic(id)
   return { ok: true }
 }
 
@@ -476,26 +422,6 @@ export function loadAiRuntime() {
   }
 }
 
-const questionsFile = path.join(dataDir, 'questions.json')
-
-type BankFile = { questions: StoredQuestion[] }
-
-const emptyBank: BankFile = { questions: [] }
-
-function parseBank(raw: unknown): BankFile {
-  const data = (raw ?? emptyBank) as Partial<BankFile>
-  const rows = Array.isArray(data.questions) ? data.questions : []
-  return { questions: rows.filter((q) => q && typeof q.question === 'string' && q.topicId) }
-}
-
-function loadBank(): BankFile {
-  return parseBank(readJson<unknown>(questionsFile, emptyBank))
-}
-
-function saveBank(bank: BankFile) {
-  writeJson(questionsFile, bank)
-}
-
 function questionKey(text: string) {
   return text.trim().toLowerCase()
 }
@@ -548,64 +474,28 @@ export function loadUserCatalogWithCounts(userId: string): {
   return { ...catalog, bankCounts: loadBankCountsForUser(userId) }
 }
 
-function questionOwnerKey(q: StoredQuestion) {
-  if (q.ownerType === 'user' && q.ownerId) {
-    return `user:${q.ownerId}`
-  }
-  return 'platform'
-}
-
 /** Counts per subject and difficulty. Platform by default; pass userId for that player's bank. */
 export function loadBankCounts() {
-  return loadBankCountsForOwner('platform')
+  return dbBankCounts('platform')
 }
 
 export function loadBankCountsForUser(userId: string) {
-  return loadBankCountsForOwner('user', userId)
+  return dbBankCounts('user', userId)
 }
 
-function loadBankCountsForOwner(ownerType: 'platform' | 'user', ownerId?: string) {
-  const want = ownerType === 'user' && ownerId ? `user:${ownerId}` : 'platform'
-  const counts = new Map<string, number>()
-  for (const q of loadBank().questions) {
-    if (questionOwnerKey(q) !== want) {
-      continue
-    }
-    const key = `${q.topicId}\t${q.difficulty}`
-    counts.set(key, (counts.get(key) ?? 0) + 1)
-  }
-  return [...counts.entries()].map(([key, count]) => {
-    const [topicId, difficulty] = key.split('\t')
-    return { topicId, difficulty: difficulty as Difficulty, count }
-  })
-}
-
-function isOwnedQuestion(q: StoredQuestion, ownerType: 'platform' | 'user', ownerId?: string) {
-  if (ownerType === 'user') {
-    return q.ownerType === 'user' && q.ownerId === ownerId
-  }
-  return q.ownerType !== 'user'
-}
-
-/** Existing question titles for one subject+difficulty (to avoid repeats). */
+/** Existing question titles in this subject (any difficulty) so generate does not repeat them. */
 export function loadBankQuestionTexts(
   topicId: string,
-  difficulty: Difficulty,
+  _difficulty: Difficulty,
   ownerType: 'platform' | 'user' = 'platform',
   ownerId?: string,
 ): string[] {
-  return loadBank()
-    .questions.filter(
-      (q) =>
-        q.topicId === topicId &&
-        q.difficulty === difficulty &&
-        isOwnedQuestion(q, ownerType, ownerId),
-    )
+  return dbLoadQuestions({ topicId, ownerType, ownerId })
     .map((q) => q.question.trim())
     .filter(Boolean)
 }
 
-/** Append generated questions. Same text in this subject+difficulty+owner is skipped. */
+/** Append generated questions. Same text in this subject+owner is skipped (any difficulty). */
 export function appendPlatformQuestions(
   topicId: string,
   difficulty: Difficulty,
@@ -630,16 +520,8 @@ function appendOwnedQuestions(
   ownerType: 'platform' | 'user',
   ownerId?: string,
 ): { added: number; skipped: number } {
-  const bank = loadBank()
   const seen = new Set(
-    bank.questions
-      .filter(
-        (q) =>
-          q.topicId === topicId &&
-          q.difficulty === difficulty &&
-          isOwnedQuestion(q, ownerType, ownerId),
-      )
-      .map((q) => questionKey(q.question)),
+    dbLoadQuestions({ topicId, ownerType, ownerId }).map((q) => questionKey(q.question)),
   )
   let added = 0
   let skipped = 0
@@ -666,10 +548,9 @@ function appendOwnedQuestions(
     if (item.sourceUrl) {
       row.sourceUrl = item.sourceUrl
     }
-    bank.questions.push(row)
+    dbInsertQuestion(row)
     added += 1
   }
-  saveBank(bank)
   return { added, skipped }
 }
 
@@ -680,15 +561,9 @@ export function loadBankQuestions(
   ownerType: 'platform' | 'user' = 'platform',
   ownerId?: string,
 ): StoredQuestion[] {
-  return loadBank()
-    .questions.filter(
-      (q) =>
-        q.topicId === topicId &&
-        q.difficulty === difficulty &&
-        isOwnedQuestion(q, ownerType, ownerId),
-    )
-    .slice()
-    .sort((a, b) => a.question.localeCompare(b.question, 'sv'))
+  return dbLoadQuestions({ topicId, difficulty, ownerType, ownerId }).sort((a, b) =>
+    a.question.localeCompare(b.question, 'sv'),
+  )
 }
 
 function shuffleList<T>(items: T[]): T[] {
@@ -710,6 +585,7 @@ function storedToQuiz(row: StoredQuestion): QuizQuestion {
     options: shuffled.map((p) => p.text),
     correctIndex: shuffled.findIndex((p) => p.correct),
     explanation: row.explanation,
+    difficulty: row.difficulty,
   }
   if (row.sourceUrl?.trim()) {
     q.sourceUrl = row.sourceUrl.trim()
@@ -720,7 +596,7 @@ function storedToQuiz(row: StoredQuestion): QuizQuestion {
 /** Guest round: pick unseen questions only. Short round if fewer unseen than requested. */
 export function drawPlatformRound(
   topicId: string,
-  difficulty: Difficulty,
+  difficulty: PlayDifficulty,
   count: number,
   exclude: string[],
 ) {
@@ -731,7 +607,7 @@ export function drawPlatformRound(
 export function drawUserRound(
   userId: string,
   topicId: string,
-  difficulty: Difficulty,
+  difficulty: PlayDifficulty,
   count: number,
   exclude: string[],
 ) {
@@ -740,7 +616,7 @@ export function drawUserRound(
 
 function drawOwnedRound(
   topicId: string,
-  difficulty: Difficulty,
+  difficulty: PlayDifficulty,
   count: number,
   exclude: string[],
   ownerType: 'platform' | 'user',
@@ -748,7 +624,10 @@ function drawOwnedRound(
 ):
   | { questions: QuizQuestion[]; unseen: number }
   | { available: number; reason: 'empty' | 'no_new' } {
-  const pool = loadBankQuestions(topicId, difficulty, ownerType, ownerId)
+  const pool =
+    difficulty === 'all'
+      ? dbLoadQuestions({ topicId, ownerType, ownerId })
+      : loadBankQuestions(topicId, difficulty, ownerType, ownerId)
   if (pool.length === 0) {
     return { available: 0, reason: 'empty' }
   }
@@ -767,12 +646,10 @@ export function updateBankQuestion(
   id: string,
   patch: Pick<StoredQuestion, 'question' | 'options' | 'correctIndex' | 'explanation' | 'sourceUrl'>,
 ): { question: StoredQuestion } | { error: 'not_found' | 'duplicate' } {
-  const bank = loadBank()
-  const index = bank.questions.findIndex((q) => q.id === id)
-  if (index < 0) {
+  const current = dbGetQuestion(id)
+  if (!current) {
     return { error: 'not_found' }
   }
-  const current = bank.questions[index]
   const next: StoredQuestion = {
     ...current,
     question: patch.question.trim(),
@@ -786,31 +663,19 @@ export function updateBankQuestion(
     delete next.sourceUrl
   }
   const key = questionKey(next.question)
-  const duplicate = bank.questions.some(
-    (q) =>
-      q.id !== id &&
-      q.topicId === current.topicId &&
-      q.difficulty === current.difficulty &&
-      questionKey(q.question) === key,
+  const duplicate = dbLoadQuestions({ topicId: current.topicId, difficulty: current.difficulty }).some(
+    (q) => q.id !== id && questionKey(q.question) === key,
   )
   if (duplicate) {
     return { error: 'duplicate' }
   }
-  bank.questions[index] = next
-  saveBank(bank)
+  dbUpdateQuestion(next)
   return { question: next }
 }
 
 /** Delete one stored question. Returns the removed row, or null if missing. */
 export function deleteBankQuestion(id: string): StoredQuestion | null {
-  const bank = loadBank()
-  const index = bank.questions.findIndex((q) => q.id === id)
-  if (index < 0) {
-    return null
-  }
-  const [removed] = bank.questions.splice(index, 1)
-  saveBank({ questions: bank.questions })
-  return removed
+  return dbDeleteQuestion(id)
 }
 
 /** Delete many questions that belong to this owner. Unknown or foreign ids are skipped. */
@@ -818,26 +683,21 @@ export function deleteBankQuestions(
   ids: string[],
   owner: CatalogOwner,
 ): { removed: number; bankCounts: BankCount[] } {
-  const want = new Set(ids.filter((id) => id.length > 0))
-  const bank = loadBank()
-  let removed = 0
-  const next = bank.questions.filter((q) => {
-    if (!want.has(q.id)) {
-      return true
+  const ownedIds: string[] = []
+  for (const id of ids.filter((value) => value.length > 0)) {
+    const row = dbGetQuestion(id)
+    if (!row) {
+      continue
     }
     const owned =
       owner.kind === 'user'
-        ? q.ownerType === 'user' && q.ownerId === owner.userId
-        : q.ownerType !== 'user'
-    if (!owned) {
-      return true
+        ? row.ownerType === 'user' && row.ownerId === owner.userId
+        : row.ownerType !== 'user'
+    if (owned) {
+      ownedIds.push(id)
     }
-    removed += 1
-    return false
-  })
-  if (removed) {
-    saveBank({ questions: next })
   }
+  const removed = dbDeleteQuestions(ownedIds)
   return {
     removed,
     bankCounts: owner.kind === 'user' ? loadBankCountsForUser(owner.userId) : loadBankCounts(),
@@ -850,28 +710,9 @@ export function deleteQuestionsForTopic(
   owner: CatalogOwner,
   difficulty?: Difficulty,
 ): { removed: number; bankCounts: BankCount[] } {
-  const bank = loadBank()
-  let removed = 0
-  const next = bank.questions.filter((q) => {
-    if (q.topicId !== topicId) {
-      return true
-    }
-    if (difficulty && q.difficulty !== difficulty) {
-      return true
-    }
-    const owned =
-      owner.kind === 'user'
-        ? q.ownerType === 'user' && q.ownerId === owner.userId
-        : q.ownerType !== 'user'
-    if (!owned) {
-      return true
-    }
-    removed += 1
-    return false
-  })
-  if (removed) {
-    saveBank({ questions: next })
-  }
+  const ownerType = owner.kind === 'user' ? 'user' : 'platform'
+  const ownerId = owner.kind === 'user' ? owner.userId : undefined
+  const removed = dbDeleteQuestionsForTopic(topicId, ownerType, ownerId, difficulty)
   return {
     removed,
     bankCounts: owner.kind === 'user' ? loadBankCountsForUser(owner.userId) : loadBankCounts(),

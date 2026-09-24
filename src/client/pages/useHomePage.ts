@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import type { BankCount, CatalogResponse, Category, Difficulty, QuizAttempt, Topic } from '../../shared/types'
+import type { BankCount, CatalogResponse, Category, PlayDifficulty, QuizAttempt, Topic } from '../../shared/types'
 import { fillText } from '../catalogUi'
 import {
   bankAvailable,
   clearPlayerContext,
-  COUNT_CHOICES,
-  DIFFICULTY_ORDER,
+  playDifficultyChoices,
+  roundCountChoices,
+  clearSeen,
   fetchQuizRound,
   isPrivateCategory,
   readPlayerSession,
   ROUND_KEY,
+  unseenLeftAfterDraw,
   writePlayerSession,
   type PlayerSession,
 } from '../playerSession'
@@ -35,10 +37,11 @@ export function useHomePage() {
   const [categoryId, setCategoryId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [count, setCount] = useState(10)
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium')
+  const [difficulty, setDifficulty] = useState<PlayDifficulty>('medium')
   const [status, setStatus] = useState<CatalogStatus>('loading')
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState('')
+  const [bankExhausted, setBankExhausted] = useState(false)
   const [playView, setPlayView] = useState<HomePlayView>('play')
   const [catalogEpoch, setCatalogEpoch] = useState(0)
   const startAbort = useRef<AbortController | null>(null)
@@ -141,8 +144,8 @@ export function useHomePage() {
   const myCategories = categories.filter(isPrivateCategory)
   const pickingMine = myCategories.some((c) => c.id === categoryId)
   const topicsInCategory = topics.filter((t) => t.categoryId === categoryId)
-  const guestDifficulties = DIFFICULTY_ORDER.filter((d) => bankAvailable(bankCounts, topicId, d) >= 5)
-  const countChoices = COUNT_CHOICES.filter((n) => n <= bankAvailable(bankCounts, topicId, difficulty))
+  const guestDifficulties = playDifficultyChoices(bankCounts, topicId)
+  const countChoices = roundCountChoices(bankAvailable(bankCounts, topicId, difficulty))
   const canStart =
     status === 'ready' &&
     Boolean(topicId) &&
@@ -156,12 +159,12 @@ export function useHomePage() {
     if (!topicId) {
       return
     }
-    const diffs = DIFFICULTY_ORDER.filter((d) => bankAvailable(bankCounts, topicId, d) >= 5)
+    const diffs = playDifficultyChoices(bankCounts, topicId)
     if (diffs.length && !diffs.includes(difficulty)) {
       setDifficulty(diffs[0])
       return
     }
-    const counts = COUNT_CHOICES.filter((n) => n <= bankAvailable(bankCounts, topicId, difficulty))
+    const counts = roundCountChoices(bankAvailable(bankCounts, topicId, difficulty))
     if (counts.length && !counts.includes(count)) {
       setCount(counts[counts.length - 1])
     }
@@ -170,6 +173,7 @@ export function useHomePage() {
   // Drop a stale start error when the player changes what they would start.
   useEffect(() => {
     setStartError('')
+    setBankExhausted(false)
   }, [categoryId, topicId, count, difficulty])
 
   function onPickCategory(id: string) {
@@ -188,7 +192,7 @@ export function useHomePage() {
     setCount(value)
   }
 
-  function onDifficulty(value: Difficulty) {
+  function onDifficulty(value: PlayDifficulty) {
     setStartError('')
     setDifficulty(value)
   }
@@ -197,7 +201,7 @@ export function useHomePage() {
     nextTopicId: string,
     nextCategoryId: string,
     nextCount: number,
-    nextDifficulty: Difficulty,
+    nextDifficulty: PlayDifficulty,
   ) {
     setStartError('')
     setBusy(true)
@@ -211,9 +215,11 @@ export function useHomePage() {
         return
       }
       if ('error' in data) {
+        const exhausted = data.error === 'no_new_questions'
+        setBankExhausted(exhausted)
         setStartError(
-          data.error === 'no_new_questions'
-            ? strings.moreQuestionsNone
+          exhausted
+            ? strings.replayBankHint
             : data.error === 'bank_too_small'
               ? fillText(strings.bankTooSmall, {
                   available: data.available ?? 0,
@@ -244,6 +250,7 @@ export function useHomePage() {
           questions: data.questions,
           requestedCount: data.requested,
           shortNotice,
+          unseenLeft: unseenLeftAfterDraw(data.available, data.questions.length),
         }),
       )
       const q = new URLSearchParams({
@@ -263,6 +270,15 @@ export function useHomePage() {
 
   async function onStart(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    await startRound(topicId, categoryId, count, difficulty)
+  }
+
+  async function onReplayBank() {
+    if (!topicId) {
+      return
+    }
+    clearSeen(topicId)
+    setBankExhausted(false)
     await startRound(topicId, categoryId, count, difficulty)
   }
 
@@ -310,6 +326,7 @@ export function useHomePage() {
     status,
     busy,
     startError,
+    bankExhausted,
     playView,
     setPlayView,
     platformCategories,
@@ -326,6 +343,7 @@ export function useHomePage() {
     onPickCategory,
     onPickTopic,
     onStart,
+    onReplayBank,
     onPlayAgain,
     openMine,
     backFromMine,

@@ -3,8 +3,10 @@
 /** How much the admin debug log keeps. */
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug'
 
-/** Difficulty sent to the AI prompt. */
+/** Difficulty sent to the AI prompt and stored on each question. */
 export type Difficulty = 'hard' | 'medium' | 'easy' | 'children'
+/** Start/play filter. `all` mixes every stocked difficulty in the subject. */
+export type PlayDifficulty = Difficulty | 'all'
 
 /** How strictly generation should stick to a subject source URL. */
 export type SourceFocus = 'only' | 'mainly'
@@ -40,6 +42,8 @@ export type QuizQuestion = {
   correctIndex: number
   explanation: string
   sourceUrl?: string
+  /** Stored level. Shown discreetly when the round is Alla. */
+  difficulty?: Difficulty
 }
 
 /** Score shown on the summary screen. */
@@ -57,7 +61,7 @@ export type QuizAttempt = {
   categoryId: string
   categoryName: string
   topicName: string
-  difficulty: Difficulty
+  difficulty: PlayDifficulty
   count: number
   good: number
   bad: number
