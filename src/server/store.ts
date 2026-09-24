@@ -721,9 +721,36 @@ export function updateBankQuestion(
   return { question: next }
 }
 
-/** Delete one stored question. Returns the removed row, or null if missing. */
+/** Delete one stored question and copies of it in the same subject. */
 export function deleteBankQuestion(id: string): StoredQuestion | null {
-  return dbDeleteQuestion(id)
+  const row = dbGetQuestion(id)
+  if (!row) {
+    return null
+  }
+  dbDeleteQuestions(idsWithCopies(row))
+  return row
+}
+
+function ownsQuestion(row: StoredQuestion, owner: CatalogOwner) {
+  return owner.kind === 'user'
+    ? row.ownerType === 'user' && row.ownerId === owner.userId
+    : row.ownerType !== 'user'
+}
+
+/** The chosen row plus copies of the same question stored at other difficulties. */
+function idsWithCopies(row: StoredQuestion) {
+  const ids = [row.id]
+  const siblings = dbLoadQuestions({
+    topicId: row.topicId,
+    ownerType: row.ownerType,
+    ownerId: row.ownerId,
+  })
+  for (const sibling of siblings) {
+    if (sibling.id !== row.id && questionsAreDuplicates(sibling, row)) {
+      ids.push(sibling.id)
+    }
+  }
+  return ids
 }
 
 /** Delete many questions that belong to this owner. Unknown or foreign ids are skipped. */
@@ -731,21 +758,17 @@ export function deleteBankQuestions(
   ids: string[],
   owner: CatalogOwner,
 ): { removed: number; bankCounts: BankCount[] } {
-  const ownedIds: string[] = []
+  const ownedIds = new Set<string>()
   for (const id of ids.filter((value) => value.length > 0)) {
     const row = dbGetQuestion(id)
-    if (!row) {
+    if (!row || !ownsQuestion(row, owner)) {
       continue
     }
-    const owned =
-      owner.kind === 'user'
-        ? row.ownerType === 'user' && row.ownerId === owner.userId
-        : row.ownerType !== 'user'
-    if (owned) {
-      ownedIds.push(id)
+    for (const matchId of idsWithCopies(row)) {
+      ownedIds.add(matchId)
     }
   }
-  const removed = dbDeleteQuestions(ownedIds)
+  const removed = dbDeleteQuestions([...ownedIds])
   return {
     removed,
     bankCounts: owner.kind === 'user' ? loadBankCountsForUser(owner.userId) : loadBankCounts(),

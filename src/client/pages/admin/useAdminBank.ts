@@ -86,7 +86,16 @@ export function useAdminBank(opts: {
       const data = (await res.json()) as { questions?: StoredQuestion[] }
       lists.push(data.questions ?? [])
     }
-    setBankQuestions(lists.flat())
+    const seen = new Set<string>()
+    setBankQuestions(
+      lists.flat().filter((row) => {
+        if (seen.has(row.id)) {
+          return false
+        }
+        seen.add(row.id)
+        return true
+      }),
+    )
     setSelectedQuestionIds([])
   }
 
