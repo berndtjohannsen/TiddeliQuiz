@@ -542,13 +542,25 @@ export function loadBankQuestionTexts(
     .filter(Boolean)
 }
 
-/** Append generated questions. Same text in this subject+owner is skipped (any difficulty). */
+const PLAY_DIFFICULTIES: Difficulty[] = ['hard', 'medium', 'easy', 'children']
+
+/** Levels that should not show this batch. Empty means the question plays everywhere. */
+function hiddenDifficulties(visibleOn?: Difficulty[]) {
+  if (!visibleOn?.length) {
+    return undefined
+  }
+  const hidden = PLAY_DIFFICULTIES.filter((id) => !visibleOn.includes(id))
+  return hidden.length ? hidden : undefined
+}
+
+/** Append generated questions. Same text in this subject is skipped at every difficulty. */
 export function appendPlatformQuestions(
   topicId: string,
   difficulty: Difficulty,
   generated: QuizQuestion[],
+  visibleOn?: Difficulty[],
 ) {
-  return appendOwnedQuestions(topicId, difficulty, generated, 'platform')
+  return appendOwnedQuestions(topicId, difficulty, generated, 'platform', undefined, visibleOn)
 }
 
 export function appendUserQuestions(
@@ -556,8 +568,9 @@ export function appendUserQuestions(
   topicId: string,
   difficulty: Difficulty,
   generated: QuizQuestion[],
+  visibleOn?: Difficulty[],
 ) {
-  return appendOwnedQuestions(topicId, difficulty, generated, 'user', userId)
+  return appendOwnedQuestions(topicId, difficulty, generated, 'user', userId, visibleOn)
 }
 
 function appendOwnedQuestions(
@@ -566,6 +579,7 @@ function appendOwnedQuestions(
   generated: QuizQuestion[],
   ownerType: 'platform' | 'user',
   ownerId?: string,
+  visibleOn?: Difficulty[],
 ): { added: number; skipped: number } {
   const seen = dbLoadQuestions({ topicId, ownerType, ownerId })
   let added = 0
@@ -596,7 +610,7 @@ function appendOwnedQuestions(
     if (item.sourceUrl) {
       row.sourceUrl = item.sourceUrl
     }
-    dbInsertQuestion(row)
+    dbInsertQuestion(row, hiddenDifficulties(visibleOn))
     seen.push(row)
     added += 1
   }

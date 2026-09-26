@@ -478,11 +478,17 @@ export function dbBankCounts(ownerType: 'platform' | 'user', ownerId?: string): 
   })
 }
 
-export function dbInsertQuestion(row: StoredQuestion) {
+export function dbInsertQuestion(row: StoredQuestion, hiddenDifficulties?: Difficulty[]) {
   const database = openCatalogDb()
   const ts = nowIso()
   const ownerType = row.ownerType === 'user' ? 'user' : 'platform'
   const ownerId = ownerType === 'user' ? row.ownerId ?? null : null
+  const meta: { playAllDifficulties: boolean; hiddenDifficulties?: Difficulty[] } = {
+    playAllDifficulties: true,
+  }
+  if (hiddenDifficulties?.length) {
+    meta.hiddenDifficulties = hiddenDifficulties
+  }
   const tx = database.transaction(() => {
     database
       .prepare(
@@ -497,7 +503,7 @@ export function dbInsertQuestion(row: StoredQuestion) {
         ownerId,
         row.question,
         row.explanation,
-        JSON.stringify({ playAllDifficulties: true }),
+        JSON.stringify(meta),
         ts,
         ts,
       )

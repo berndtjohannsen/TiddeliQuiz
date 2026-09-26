@@ -199,7 +199,8 @@ export function mountAdminApi(app: Hono) {
       who: 'Admin',
       difficulties: selected,
       exclude: (difficulty) => loadBankQuestionTexts(topic.id, difficulty),
-      append: (difficulty, questions) => appendPlatformQuestions(topic.id, difficulty, questions),
+      append: (difficulty, questions, visibleOn) =>
+        appendPlatformQuestions(topic.id, difficulty, questions, visibleOn),
       counts: () => loadBankCounts(),
     })
     return c.json({ jobId })
@@ -398,8 +399,8 @@ export function mountAdminApi(app: Hono) {
       who: `Admin for ${account.username}`,
       difficulties: selected,
       exclude: (difficulty) => loadBankQuestionTexts(topic.id, difficulty, 'user', account.id),
-      append: (difficulty, questions) =>
-        appendUserQuestions(account.id, topic.id, difficulty, questions),
+      append: (difficulty, questions, visibleOn) =>
+        appendUserQuestions(account.id, topic.id, difficulty, questions, visibleOn),
       counts: () => loadBankCountsForUser(account.id),
     })
     return c.json({ jobId })

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { AdminConfig, BankCount, Category, PlayerPublic, Topic } from '../../../shared/types'
 import { strings } from '../../strings'
 import type { AdminCatalogLevel } from '../../catalogUi'
@@ -17,7 +17,13 @@ export function useAdminPage() {
   const [config, setConfig] = useState<AdminConfig | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [logLines, setLogLines] = useState<string[]>([])
-  const [message, setMessage] = useState('')
+  const [message, setMessageState] = useState('')
+  /** Set when a notice is written, so the next screen change is the one that clears it. */
+  const messageHold = useRef(false)
+  function setMessage(text: string) {
+    messageHold.current = text !== ''
+    setMessageState(text)
+  }
   const [error, setError] = useState('')
   const [tab, setTab] = useState<AdminTab>('categories')
   const [catalogOwner, setCatalogOwner] = useState<PlayerPublic | null>(null)
@@ -28,6 +34,21 @@ export function useAdminPage() {
   const [query, setQuery] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
   const [settingsPage, setSettingsPage] = useState<SettingsPage>('list')
+
+  useEffect(() => {
+    if (messageHold.current) {
+      messageHold.current = false
+      return
+    }
+    setMessageState('')
+  }, [level, tab])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      messageHold.current = false
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [message, level, tab])
 
   const bank = useAdminBank({
     catalogOwner,

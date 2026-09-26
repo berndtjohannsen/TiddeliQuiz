@@ -112,8 +112,8 @@ export function mountPlayerApi(app: Hono) {
       who: `Player ${player.username}`,
       difficulties: selected,
       exclude: (difficulty) => loadBankQuestionTexts(topic.id, difficulty, 'user', player.id),
-      append: (difficulty, questions) =>
-        appendUserQuestions(player.id, topic.id, difficulty, questions),
+      append: (difficulty, questions, visibleOn) =>
+        appendUserQuestions(player.id, topic.id, difficulty, questions, visibleOn),
       counts: () => loadBankCountsForUser(player.id),
     })
     return c.json({ jobId })

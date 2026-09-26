@@ -377,6 +377,9 @@ function generateAllRowText(row: GenerateAllRow, admin: boolean) {
   if (row.status === 'failed') {
     return admin ? strings.bankGenerateAllRowFailed : strings.myBankGenerateAllRowFailed
   }
+  if (row.added == null) {
+    return admin ? strings.bankGenerateAllDone : strings.myBankGenerateAllDone
+  }
   return fillText(admin ? strings.bankGenerateAllRowDone : strings.myBankGenerateAllRowDone, {
     added: row.added ?? 0,
   })

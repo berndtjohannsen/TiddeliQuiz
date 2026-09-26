@@ -37,7 +37,13 @@ export function usePlayerCatalog() {
   const [selectedTopicId, setSelectedTopicId] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
   const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
+  const [message, setMessageState] = useState('')
+  /** Set when a notice is written, so the next screen change is the one that clears it. */
+  const messageHold = useRef(false)
+  function setMessage(text: string) {
+    messageHold.current = text !== ''
+    setMessageState(text)
+  }
   const [loadError, setLoadError] = useState('')
   const [generateCount, setGenerateCount] = useState(10)
   const [generateDifficulties, setGenerateDifficulties] = useState<Difficulty[]>(() =>
@@ -82,6 +88,21 @@ export function usePlayerCatalog() {
   useEffect(() => {
     setGenerateDifficulties(bankDifficulties.map((d) => d.id))
   }, [selectedTopicId])
+
+  useEffect(() => {
+    if (messageHold.current) {
+      messageHold.current = false
+      return
+    }
+    setMessageState('')
+  }, [level])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      messageHold.current = false
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [message, level])
 
   async function loadMine() {
     const res = await fetch('/api/player/catalog', { credentials: 'include' })

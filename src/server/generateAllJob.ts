@@ -61,7 +61,7 @@ export function startGenerateAllJob(opts: {
   who: string
   difficulties?: Difficulty[]
   exclude: (difficulty: Difficulty) => string[]
-  append: (difficulty: Difficulty, questions: QuizQuestion[]) => { added: number; skipped: number }
+  append: (difficulty: Difficulty, questions: QuizQuestion[], visibleOn?: Difficulty[]) => { added: number; skipped: number }
   counts: () => BankCount[]
 }) {
   pruneGenerateAllJobs()
@@ -91,46 +91,41 @@ async function runGenerateAllJob(
     who: string
     difficulties: Difficulty[]
     exclude: (difficulty: Difficulty) => string[]
-    append: (difficulty: Difficulty, questions: QuizQuestion[]) => { added: number; skipped: number }
+    append: (difficulty: Difficulty, questions: QuizQuestion[], visibleOn?: Difficulty[]) => { added: number; skipped: number }
     counts: () => BankCount[]
   },
 ) {
   try {
-    for (const difficulty of opts.difficulties) {
-      job.rows = job.rows.map((row) =>
-        row.id === difficulty ? { ...row, status: 'working' } : row,
+    const difficulty = opts.difficulties[0]
+    job.rows = job.rows.map((row) => ({ ...row, status: 'working' as const }))
+    try {
+      const questions = await generateQuizRound({
+        topic: opts.topic,
+        count: opts.count,
+        difficulty,
+        exclude: opts.exclude(difficulty).slice(0, 60).map((q) => q.slice(0, 200)),
+      })
+      const { added, skipped } = opts.append(difficulty, questions, opts.difficulties)
+      job.added = added
+      job.skipped = skipped
+      job.rows = job.rows.map((row, index) => ({
+        ...row,
+        status: 'done' as const,
+        added: index === 0 ? added : undefined,
+        skipped: index === 0 ? skipped : undefined,
+      }))
+      job.bankCounts = opts.counts()
+      log(
+        'info',
+        `${opts.who} generate selected: +${added} for ${opts.topic.name} (${opts.difficulties.join(', ')}), skipped ${skipped}`,
       )
-      try {
-        const questions = await generateQuizRound({
-          topic: opts.topic,
-          count: opts.count,
-          difficulty,
-          exclude: opts.exclude(difficulty).slice(0, 60).map((q) => q.slice(0, 200)),
-        })
-        const { added, skipped } = opts.append(difficulty, questions)
-        job.added += added
-        job.skipped += skipped
-        job.rows = job.rows.map((row) =>
-          row.id === difficulty ? { ...row, status: 'done', added, skipped } : row,
-        )
-        job.bankCounts = opts.counts()
-        log(
-          'info',
-          `${opts.who} generate all: +${added} for ${opts.topic.name} (${difficulty}), skipped ${skipped}`,
-        )
-      } catch (err) {
-        job.failed.push(difficulty)
-        job.rows = job.rows.map((row) =>
-          row.id === difficulty ? { ...row, status: 'failed' } : row,
-        )
-        if (isCancelledError(err)) {
-          log('info', `${opts.who} generate all cancelled for ${opts.topic.name} (${difficulty})`)
-        } else {
-          log(
-            'error',
-            `${opts.who} generate all failed for ${opts.topic.name} (${difficulty}): ${String(err)}`,
-          )
-        }
+    } catch (err) {
+      job.failed.push(...opts.difficulties)
+      job.rows = job.rows.map((row) => ({ ...row, status: 'failed' as const }))
+      if (isCancelledError(err)) {
+        log('info', `${opts.who} generate selected cancelled for ${opts.topic.name}`)
+      } else {
+        log('error', `${opts.who} generate selected failed for ${opts.topic.name}: ${String(err)}`)
       }
     }
   } finally {
