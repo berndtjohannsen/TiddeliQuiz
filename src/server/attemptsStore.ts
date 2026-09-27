@@ -87,6 +87,16 @@ export function listPlayerAttempts(userId: string): QuizAttempt[] {
     .map(publicAttempt)
 }
 
+export function deletePlayerAttempt(userId: string, id: string): boolean {
+  const all = loadAttempts()
+  const next = all.filter((row) => !(row.userId === userId && row.id === id))
+  if (next.length === all.length) {
+    return false
+  }
+  writeJson(attemptsFile, { attempts: next })
+  return true
+}
+
 export function appendPlayerAttempt(
   userId: string,
   fields: Omit<QuizAttempt, 'id' | 'finishedAt'>,

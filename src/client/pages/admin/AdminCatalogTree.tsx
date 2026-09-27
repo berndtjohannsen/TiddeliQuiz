@@ -336,9 +336,8 @@ export function AdminCatalogTree(props: {
                         )
                         .join(' · ')}`}
                       onOpen={() => props.onOpenQuestions(t.id)}
-                      onEdit={() => props.onEditSubject(t.id, 'subjects')}
                       onDelete={() => props.onAskRemoveTopic(t.id)}
-                      editLabel={strings.editSubject}
+                      editLabel={strings.edit}
                       deleteLabel={strings.remove}
                     />
                   ))

@@ -1,4 +1,4 @@
-import type { Category, Difficulty, PlayDifficulty, QuizQuestion, QuizScore } from '../shared/types'
+import type { BankCount, Category, Difficulty, PlayDifficulty, QuizQuestion, QuizScore } from '../shared/types'
 import { strings } from './strings'
 
 /** Browser store so /play does not call the AI again on reload. */
@@ -200,12 +200,12 @@ export function isPrivateCategory(c: Pick<Category, 'ownerType'>) {
   return c.ownerType === 'user'
 }
 
-export function bankAvailable(
-  counts: { topicId: string; difficulty: Difficulty; count: number }[],
-  topicId: string,
-  difficulty: PlayDifficulty,
-) {
+export function bankAvailable(counts: BankCount[], topicId: string, difficulty: PlayDifficulty) {
   if (difficulty === 'all') {
+    const unique = counts.find((row) => row.topicId === topicId && row.difficulty === 'all')
+    if (unique) {
+      return unique.count
+    }
     return DIFFICULTY_ORDER.reduce(
       (sum, d) => sum + (counts.find((row) => row.topicId === topicId && row.difficulty === d)?.count ?? 0),
       0,
@@ -215,10 +215,7 @@ export function bankAvailable(
 }
 
 /** Playable levels plus Alla when at least one level has enough questions. */
-export function playDifficultyChoices(
-  counts: { topicId: string; difficulty: Difficulty; count: number }[],
-  topicId: string,
-): PlayDifficulty[] {
+export function playDifficultyChoices(counts: BankCount[], topicId: string): PlayDifficulty[] {
   const diffs: PlayDifficulty[] = DIFFICULTY_ORDER.filter((d) => bankAvailable(counts, topicId, d) >= 5)
   if (diffs.length) {
     diffs.push('all')

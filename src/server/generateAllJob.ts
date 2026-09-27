@@ -108,11 +108,11 @@ async function runGenerateAllJob(
       const { added, skipped } = opts.append(difficulty, questions, opts.difficulties)
       job.added = added
       job.skipped = skipped
-      job.rows = job.rows.map((row, index) => ({
+      job.rows = job.rows.map((row) => ({
         ...row,
         status: 'done' as const,
-        added: index === 0 ? added : undefined,
-        skipped: index === 0 ? skipped : undefined,
+        added,
+        skipped,
       }))
       job.bankCounts = opts.counts()
       log(

@@ -21,7 +21,7 @@ import {
 import { strings } from '../strings'
 
 export type HomeGate = 'choose' | 'user-login' | 'play'
-export type HomePlayView = 'play' | 'mine' | 'results'
+export type HomePlayView = 'play' | 'mine'
 export type CatalogStatus = 'loading' | 'ready' | 'empty' | 'error'
 
 /** Login, catalog load, and starting a round from the home screen. */

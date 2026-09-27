@@ -81,10 +81,10 @@ export type AiSettingsPublic = {
   apiKeySet: boolean
 }
 
-/** How many platform questions exist for one subject and difficulty. */
+/** How many questions exist for one subject and difficulty. "all" is each question once. */
 export type BankCount = {
   topicId: string
-  difficulty: Difficulty
+  difficulty: Difficulty | 'all'
   count: number
 }
 

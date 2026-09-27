@@ -1,7 +1,7 @@
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { Hono } from 'hono'
 import type { Difficulty } from '../shared/types'
-import { appendPlayerAttempt, listPlayerAttempts, parseAttemptFields } from './attemptsStore'
+import { appendPlayerAttempt, deletePlayerAttempt, listPlayerAttempts, parseAttemptFields } from './attemptsStore'
 import { generateQuizRound, isCancelledError } from './ai'
 import { generateAllJobJson, startGenerateAllJob } from './generateAllJob'
 import { playerAccount, playerCookie, playerSessions } from './httpAuth'
@@ -204,5 +204,18 @@ export function mountPlayerApi(app: Hono) {
     const attempt = appendPlayerAttempt(player.id, parsed)
     log('info', `Player ${player.username} saved attempt ${attempt.topicName} (${attempt.difficulty})`)
     return c.json({ attempt })
+  })
+
+  /** Remove one finished quiz from this player's history. */
+  app.delete('/api/player/attempts/:id', (c) => {
+    const player = playerAccount(c)
+    if (!player) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+    const removed = deletePlayerAttempt(player.id, c.req.param('id'))
+    if (!removed) {
+      return c.json({ error: 'Unknown attempt' }, 404)
+    }
+    return c.json({ ok: true })
   })
 }

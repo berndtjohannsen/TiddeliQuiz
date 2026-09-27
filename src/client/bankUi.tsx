@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { BankCount, Difficulty, StoredQuestion, Topic } from '../shared/types'
 import {
+  bankCountForTopic,
   bankCountIn,
   bankDifficulties,
   btnDangerText,
@@ -218,7 +219,14 @@ export function TopicBankScreen(props: {
     <div className="flex flex-col gap-4">
       {props.children}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="text-lg font-medium">{props.topic.name}</h2>
+        <div className="min-w-0">
+          <h2 className="text-lg font-medium">{props.topic.name}</h2>
+          <p className="text-xs text-slate-400">
+            {fillText(admin ? strings.topicBankCount : strings.myTopicBankCount, {
+              count: bankCountForTopic(props.counts, props.topic.id),
+            })}
+          </p>
+        </div>
         <div className="flex shrink-0 gap-1">
           {admin ? (
             <button type="button" className={btnLink} onClick={props.onEditPrompt}>

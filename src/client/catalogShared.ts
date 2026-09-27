@@ -104,6 +104,10 @@ export function bankCountIn(counts: BankCount[] | undefined, topicId: string, di
 }
 
 export function bankCountForTopic(counts: BankCount[] | undefined, topicId: string) {
+  const unique = counts?.find((c) => c.topicId === topicId && c.difficulty === 'all')
+  if (unique) {
+    return unique.count
+  }
   return bankDifficulties.reduce((sum, d) => sum + bankCountIn(counts, topicId, d.id), 0)
 }
 

@@ -3,7 +3,7 @@ import type { Category, PlayDifficulty, Topic } from '../../shared/types'
 import { APP_VERSION } from '../../version'
 import { difficultyLabel } from '../catalogUi'
 import { strings } from '../strings'
-import type { CatalogStatus, HomePlayView } from './useHomePage'
+import type { CatalogStatus } from './useHomePage'
 import type { PlayerSession } from '../playerSession'
 
 /** Reserved strip for a future ad. Empty in v1. */
@@ -224,12 +224,10 @@ export function UserLoginGate(props: {
   )
 }
 
-/** Title row on the play / results / mine screens. */
+/** Title row on the play / mine screens. */
 export function PlayHeader(props: {
   player: PlayerSession | null
   isGuest: boolean
-  playView: HomePlayView
-  onResults: () => void
   onLogout: () => void
 }) {
   return (
@@ -244,11 +242,6 @@ export function PlayHeader(props: {
         </p>
       </div>
       <div className="flex flex-col items-end gap-2">
-        {props.playView === 'play' ? (
-          <button type="button" className="text-sm text-sky-400" onClick={props.onResults}>
-            {strings.myResults}
-          </button>
-        ) : null}
         {/* Guest returns to the chooser; a logged-in player actually logs out. */}
         <button type="button" className="text-sm text-sky-400" onClick={props.onLogout}>
           {props.isGuest ? strings.backToChoose : strings.playerLogout}

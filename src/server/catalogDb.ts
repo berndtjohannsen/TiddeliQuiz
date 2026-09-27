@@ -462,20 +462,33 @@ export function dbBankCounts(ownerType: 'platform' | 'user', ownerId?: string): 
           .prepare(`SELECT topic_id AS topicId, difficulty, meta_json AS metaJson FROM questions WHERE owner_type = 'platform'`)
           .all() as { topicId: string; difficulty: string; metaJson: string }[])
   const counts = new Map<string, number>()
+  const unique = new Map<string, number>()
   for (const row of rows) {
     const playAll = metaPlayAll(row.metaJson)
+    let plays = false
     for (const difficulty of COUNT_DIFFICULTIES) {
       if (playAll ? metaHides(row.metaJson, difficulty) : row.difficulty !== difficulty) {
         continue
       }
+      plays = true
       const key = `${row.topicId}\t${difficulty}`
       counts.set(key, (counts.get(key) ?? 0) + 1)
     }
+    if (plays) {
+      unique.set(row.topicId, (unique.get(row.topicId) ?? 0) + 1)
+    }
   }
-  return [...counts.entries()].map(([key, count]) => {
-    const [topicId, difficulty] = key.split('\t')
-    return { topicId, difficulty: difficulty as Difficulty, count }
-  })
+  return [
+    ...[...counts.entries()].map(([key, count]) => {
+      const [topicId, difficulty] = key.split('\t')
+      return { topicId, difficulty: difficulty as Difficulty, count }
+    }),
+    ...[...unique.entries()].map(([topicId, count]) => ({
+      topicId,
+      difficulty: 'all' as const,
+      count,
+    })),
+  ]
 }
 
 export function dbInsertQuestion(row: StoredQuestion, hiddenDifficulties?: Difficulty[]) {

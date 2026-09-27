@@ -42,6 +42,10 @@ export function appendGuestAttempt(fields: Omit<QuizAttempt, 'id' | 'finishedAt'
   return row
 }
 
+export function removeGuestAttempt(id: string) {
+  writeGuestAttempts(readGuestAttempts().filter((row) => row.id !== id))
+}
+
 /** Logged-in: server. Guest: localStorage. */
 export async function recordFinishedAttempt(
   fields: Omit<QuizAttempt, 'id' | 'finishedAt'>,
@@ -73,4 +77,17 @@ export async function loadAttemptHistory(): Promise<QuizAttempt[]> {
   }
   const data = (await res.json()) as { attempts?: QuizAttempt[] }
   return Array.isArray(data.attempts) ? data.attempts : []
+}
+
+/** Drop one finished quiz from this player's history. */
+export async function removeAttempt(id: string): Promise<boolean> {
+  if (!isLoggedInPlayer()) {
+    removeGuestAttempt(id)
+    return true
+  }
+  const res = await fetch(`/api/player/attempts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  return res.ok
 }
