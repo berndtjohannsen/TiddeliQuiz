@@ -40,7 +40,7 @@ export function useHomePage() {
   const [categoryId, setCategoryId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [count, setCount] = useState(10)
-  const [difficulty, setDifficulty] = useState<PlayDifficulty>('medium')
+  const [difficulty, setDifficulty] = useState<PlayDifficulty>('all')
   const [status, setStatus] = useState<CatalogStatus>('loading')
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState('')
@@ -181,7 +181,8 @@ export function useHomePage() {
     }
     const diffs = playDifficultyChoices(bankCounts, topicId)
     if (diffs.length && !diffs.includes(difficulty)) {
-      setDifficulty(diffs[0])
+      // Alla stays available whenever any level can be played. Do not fall back to Svår.
+      setDifficulty(diffs.includes('all') ? 'all' : diffs[0])
       return
     }
     const available = bankAvailable(bankCounts, topicId, difficulty)
@@ -208,12 +209,29 @@ export function useHomePage() {
   function onPickCategory(id: string) {
     setStartError('')
     setCategoryId(id)
-    setTopicId(topics.find((t) => t.categoryId === id)?.id ?? '')
+    // The list shows the first subject immediately. Count that whole subject, not one level.
+    chooseTopic(topics.find((t) => t.categoryId === id)?.id ?? '')
   }
 
   function onPickTopic(id: string) {
     setStartError('')
+    chooseTopic(id)
+  }
+
+  /** A chosen subject starts at Alla difficulties and every question in that subject. */
+  function chooseTopic(id: string) {
     setTopicId(id)
+    if (!id) {
+      return
+    }
+    pinnedCount.current = null
+    const diffs = playDifficultyChoices(bankCounts, id)
+    const next: PlayDifficulty = diffs.includes('all') ? 'all' : diffs[0] ?? 'all'
+    setDifficulty(next)
+    const total = roundAllCount(bankAvailable(bankCounts, id, next))
+    if (total) {
+      setCount(total)
+    }
   }
 
   function onCount(value: number) {

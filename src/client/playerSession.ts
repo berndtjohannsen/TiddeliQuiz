@@ -214,13 +214,13 @@ export function bankAvailable(counts: BankCount[], topicId: string, difficulty: 
   return counts.find((row) => row.topicId === topicId && row.difficulty === difficulty)?.count ?? 0
 }
 
-/** Playable levels plus Alla when at least one level has enough questions. */
+/** Alla first, then each level that has enough questions to play. */
 export function playDifficultyChoices(counts: BankCount[], topicId: string): PlayDifficulty[] {
   const diffs: PlayDifficulty[] = DIFFICULTY_ORDER.filter((d) => bankAvailable(counts, topicId, d) >= 5)
-  if (diffs.length) {
-    diffs.push('all')
+  if (!diffs.length) {
+    return []
   }
-  return diffs
+  return ['all', ...diffs]
 }
 
 export type QuizStartResult =
