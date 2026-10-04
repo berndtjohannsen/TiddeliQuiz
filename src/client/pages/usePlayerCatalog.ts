@@ -4,6 +4,7 @@ import {
   applyGenerateAllCounts,
   bankDifficulties,
   catalogRequest,
+  compareSwedishName,
   emptyCategory,
   emptyGenerateAllRows,
   emptyTopic,
@@ -65,7 +66,7 @@ export function usePlayerCatalog() {
   const subjectsInCategory = topicCountIn(topics, selectedCategoryId)
 
   const sortedCategories = useMemo(
-    () => categories.slice().sort((a, b) => a.name.localeCompare(b.name, 'sv')),
+    () => categories.slice().sort(compareSwedishName),
     [categories],
   )
   const filteredBankQuestions = useMemo(() => {

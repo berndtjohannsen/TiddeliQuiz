@@ -1,6 +1,7 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AdminConfig, BankCount, Category, Difficulty, PlayerPublic, Topic } from '../../../shared/types'
 import {
+  compareSwedishName,
   emptyCategory,
   emptyTopic,
   fillText,
@@ -492,7 +493,7 @@ export function useAdminFolders(opts: {
     return config.categories
       .filter((c) => !q || c.name.toLowerCase().includes(q))
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name, 'sv'))
+      .sort(compareSwedishName)
   }, [config, query, level])
 
   const filteredTopics = useMemo(() => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, type FormEvent, type ReactNode } from 'react'
 import type { Category, PlayDifficulty, Topic } from '../../shared/types'
 import { APP_VERSION } from '../../version'
-import { difficultyLabel } from '../catalogUi'
+import { compareSwedishName, difficultyLabel } from '../catalogUi'
 import { strings } from '../strings'
 import type { CatalogStatus } from './useHomePage'
 import type { PlayerSession } from '../playerSession'
@@ -70,6 +70,7 @@ export function PlayCatalogBlock(props: {
   onPickCategory: (id: string) => void
   onPickTopic: (id: string) => void
 }) {
+  const categories = props.categories.slice().sort(compareSwedishName)
   const selected = props.active ? props.categoryId : ''
   const hasCategory = Boolean(selected)
   const topicsHere = hasCategory ? props.topics.filter((t) => t.categoryId === selected) : []
@@ -102,7 +103,7 @@ export function PlayCatalogBlock(props: {
           onChange={(e) => props.onPickCategory(e.target.value)}
         >
           <option value="">{placeholder}</option>
-          {props.categories.map((c) => (
+          {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

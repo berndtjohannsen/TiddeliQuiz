@@ -11,6 +11,7 @@ export {
   btnLink,
   btnSecondary,
   catalogRequest,
+  compareSwedishName,
   difficultyLabel,
   emptyCategory,
   emptyTopic,

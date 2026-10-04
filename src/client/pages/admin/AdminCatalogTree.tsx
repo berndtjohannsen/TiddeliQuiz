@@ -10,6 +10,7 @@ import {
   PromptDialog,
   TopicBankScreen,
   bankCountForCategory,
+  compareSwedishName,
   bankCountForTopic,
   bankCountIn,
   bankDifficulties,
@@ -343,9 +344,10 @@ export function AdminCatalogTree(props: {
                       onOpen={() => props.onOpenQuestions(t.id)}
                       onDelete={() => props.onAskRemoveTopic(t.id)}
                       onMove={() => {
-                        const others = props.config.categories.filter(
-                          (row) => row.id !== t.categoryId && row.name.trim(),
-                        )
+                        const others = props.config.categories
+                          .filter((row) => row.id !== t.categoryId && row.name.trim())
+                          .slice()
+                          .sort(compareSwedishName)
                         props.onClearError()
                         setMoveFromId(t.id)
                         setMoveToId(others[0]?.id ?? '')
@@ -488,6 +490,8 @@ export function AdminCatalogTree(props: {
                       row.name.trim() &&
                       row.id !== props.config.topics.find((topic) => topic.id === moveFromId)?.categoryId,
                   )
+                  .slice()
+                  .sort(compareSwedishName)
                   .map((row) => (
                     <option key={row.id} value={row.id}>
                       {row.name}

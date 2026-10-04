@@ -95,6 +95,11 @@ export function fillText(template: string, values: Record<string, string | numbe
   return text
 }
 
+/** Swedish A–Ö order for names shown in lists. */
+export function compareSwedishName(a: { name: string }, b: { name: string }) {
+  return a.name.localeCompare(b.name, 'sv')
+}
+
 export function topicCountIn(topics: Topic[], categoryId: string) {
   return topics.filter((t) => t.categoryId === categoryId).length
 }
