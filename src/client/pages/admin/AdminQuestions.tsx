@@ -33,6 +33,9 @@ export function AdminQuestions(props: {
   message: string
   questions: StoredQuestion[]
   filteredQuestions: StoredQuestion[]
+  /** Edit selected: questions already split by the difficulty they were loaded for. */
+  questionGroups: { difficulty: Difficulty; questions: StoredQuestion[] }[]
+  listLoading: boolean
   selectedIds: string[]
   pendingRemoveIds: string[]
   draft: StoredQuestion | null
@@ -133,7 +136,16 @@ export function AdminQuestions(props: {
           onToggle={props.onToggle}
           onToggleAllFiltered={props.onToggleAllFiltered}
           onEdit={props.onEdit}
-          difficultyName={mixed ? (row) => difficultyLabel(row.difficulty) : undefined}
+          sections={
+            mixed
+              ? props.questionGroups.map((group) => ({
+                  id: group.difficulty,
+                  label: difficultyLabel(group.difficulty),
+                  questions: group.questions,
+                }))
+              : undefined
+          }
+          loading={props.listLoading}
           onRemoveOne={props.onStartRemove}
           onRemoveSelected={props.onRemoveSelected}
           onRemoveAll={props.onRemoveAll}

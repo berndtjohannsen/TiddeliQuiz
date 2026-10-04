@@ -20,6 +20,7 @@ export default function AdminPage() {
     logLines,
     message,
     error,
+    setError,
     tab,
     catalogOwner,
     playerUsers,
@@ -37,6 +38,8 @@ export default function AdminPage() {
     generatingDifficulty,
     selectedDifficulty,
     listDifficulties,
+    questionGroups,
+    listLoading,
     bankQuestions,
     questionDraft,
     userScope,
@@ -71,6 +74,7 @@ export default function AdminPage() {
     askRemoveCategoryFromList,
     cancelPendingRemove,
     removeCategory,
+    moveTopicToCategory,
     askRemoveTopic,
     askClearQuestions,
     askClearDifficulty,
@@ -207,6 +211,8 @@ export default function AdminPage() {
                 onAskRemoveCategoryFromList={askRemoveCategoryFromList}
                 onCancelPendingRemove={cancelPendingRemove}
                 onRemoveCategory={(id) => void removeCategory(id)}
+                onMoveQuestions={moveTopicToCategory}
+                onClearError={() => setError('')}
                 onAddTopic={addTopic}
                 onOpenQuestions={openQuestions}
                 onAskRemoveTopic={askRemoveTopic}
@@ -254,6 +260,8 @@ export default function AdminPage() {
                   message={message}
                   questions={bankQuestions}
                   filteredQuestions={filteredBankQuestions}
+                  questionGroups={questionGroups}
+                  listLoading={listLoading}
                   selectedIds={selectedQuestionIds}
                   pendingRemoveIds={pendingRemoveIds}
                   draft={questionDraft}

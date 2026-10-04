@@ -158,7 +158,7 @@ export function useAdminPage() {
     bank.setSelectedDifficulty(resolved.difficulty)
     setLevel(resolved.level)
     if (resolved.loadQuestions) {
-      void bank.fetchBankQuestions(resolved.topicId, resolved.difficulty)
+      bank.restoreQuestionList(resolved.topicId, resolved.difficulties)
     }
   }
 
@@ -226,9 +226,10 @@ export function useAdminPage() {
       selectedCategoryId,
       selectedTopicId,
       selectedDifficulty: bank.selectedDifficulty,
+      selectedDifficulties: bank.listDifficulties,
       catalogOwner,
     })
-  }, [loggedIn, tab, level, selectedCategoryId, selectedTopicId, bank.selectedDifficulty, catalogOwner])
+  }, [loggedIn, tab, level, selectedCategoryId, selectedTopicId, bank.selectedDifficulty, bank.listDifficulties, catalogOwner])
 
   useEffect(() => {
     if (!loggedIn) {
@@ -418,6 +419,8 @@ export function useAdminPage() {
     generatingDifficulty: bank.generatingDifficulty,
     selectedDifficulty: bank.selectedDifficulty,
     listDifficulties: bank.listDifficulties,
+    questionGroups: bank.questionGroups,
+    listLoading: bank.listLoading,
     bankQuestions: bank.bankQuestions,
     questionDraft: bank.questionDraft,
     userScope,
@@ -452,6 +455,7 @@ export function useAdminPage() {
     askRemoveCategoryFromList: folders.askRemoveCategoryFromList,
     cancelPendingRemove: folders.cancelPendingRemove,
     removeCategory: folders.removeCategory,
+    moveTopicToCategory: folders.moveTopicToCategory,
     askRemoveTopic: folders.askRemoveTopic,
     askClearQuestions: folders.askClearQuestions,
     askClearDifficulty: folders.askClearDifficulty,

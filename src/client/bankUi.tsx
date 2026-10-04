@@ -290,6 +290,13 @@ export function questionSnippet(text: string) {
   return t.length > 40 ? `${t.slice(0, 40)}…` : t || strings.questionText
 }
 
+/** One difficulty's questions inside Edit selected. */
+export type BankQuestionSection = {
+  id: string
+  label: string
+  questions: StoredQuestion[]
+}
+
 /** Question list with select-all / delete selected / delete all. */
 export function BankQuestionList(props: {
   chrome: 'admin' | 'player'
@@ -303,6 +310,9 @@ export function BankQuestionList(props: {
   onEdit?: (row: StoredQuestion) => void
   /** Shown on each row when the list mixes several difficulties. */
   difficultyName?: (row: StoredQuestion) => string
+  /** Edit selected: one block per ticked difficulty, on the page rather than one shared scroller. */
+  sections?: BankQuestionSection[]
+  loading?: boolean
   onRemoveOne: (row: StoredQuestion) => void
   onRemoveSelected: () => void
   onRemoveAll: () => void
@@ -318,8 +328,63 @@ export function BankQuestionList(props: {
   const deleteSelected = admin ? strings.deleteSelected : strings.myDeleteSelected
   const deleteAll = admin ? strings.deleteAll : strings.myDeleteAll
 
-  if (props.questions.length === 0) {
+  const query = props.query.trim().toLowerCase()
+  const sections = props.sections?.map((section) => ({
+    ...section,
+    questions: section.questions.filter((row) => !query || row.question.toLowerCase().includes(query)),
+  }))
+  const sectionTotal = sections?.reduce((sum, section) => sum + section.questions.length, 0)
+  const shown = sections ? sectionTotal ?? 0 : props.filtered.length
+  const total = sections
+    ? props.sections!.reduce((sum, section) => sum + section.questions.length, 0)
+    : props.questions.length
+
+  if (props.loading && total === 0) {
+    return <p className="text-sm text-slate-400">{strings.questionListLoading}</p>
+  }
+
+  if (total === 0) {
     return <p className="text-sm text-slate-400">{empty}</p>
+  }
+
+  function renderRow(row: StoredQuestion, key: string) {
+    return (
+      <li key={key} className="flex items-start gap-2 border-b border-slate-800 last:border-b-0">
+        <label className="flex shrink-0 items-start px-2 py-3">
+          <input
+            type="checkbox"
+            checked={props.selectedIds.includes(row.id)}
+            onChange={() => props.onToggle(row.id)}
+            aria-label={row.question}
+          />
+        </label>
+        <div className="min-w-0 flex-1 py-2 pr-2 text-sm">
+          {row.question}
+          <span className="mt-1 block text-xs text-slate-400">
+            {props.difficultyName && !sections ? `${props.difficultyName(row)} · ` : ''}
+            {correct}: {row.options[row.correctIndex] || '—'}
+          </span>
+        </div>
+        <div className="flex shrink-0 gap-1 px-2 py-2">
+          {props.onEdit ? (
+            <button
+              type="button"
+              className="px-2 py-1 text-sm text-sky-400 hover:text-sky-300"
+              onClick={() => props.onEdit?.(row)}
+            >
+              {edit}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="px-2 py-1 text-sm text-red-400 hover:text-red-300"
+            onClick={() => props.onRemoveOne(row)}
+          >
+            {remove}
+          </button>
+        </div>
+      </li>
+    )
   }
 
   return (
@@ -333,8 +398,8 @@ export function BankQuestionList(props: {
       />
       <p className="text-xs text-slate-400">
         {fillText(countTpl, {
-          shown: props.filtered.length,
-          total: props.questions.length,
+          shown,
+          total,
         })}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -358,52 +423,33 @@ export function BankQuestionList(props: {
           {deleteAll}
         </button>
       </div>
-      <ul className="max-h-[28rem] overflow-auto rounded border border-slate-700">
-        {props.filtered.length === 0 ? (
-          <li className="p-3 text-sm text-slate-400">{empty}</li>
-        ) : (
-          props.filtered.map((row) => (
-            <li
-              key={row.id}
-              className="flex items-start gap-2 border-b border-slate-800 last:border-b-0"
-            >
-              <label className="flex shrink-0 items-start px-2 py-3">
-                <input
-                  type="checkbox"
-                  checked={props.selectedIds.includes(row.id)}
-                  onChange={() => props.onToggle(row.id)}
-                  aria-label={row.question}
-                />
-              </label>
-              <div className="min-w-0 flex-1 py-2 pr-2 text-sm">
-                {row.question}
-                <span className="mt-1 block text-xs text-slate-400">
-                  {props.difficultyName ? `${props.difficultyName(row)} · ` : ''}
-                  {correct}: {row.options[row.correctIndex] || '—'}
-                </span>
-              </div>
-              <div className="flex shrink-0 gap-1 px-2 py-2">
-                {props.onEdit ? (
-                  <button
-                    type="button"
-                    className="px-2 py-1 text-sm text-sky-400 hover:text-sky-300"
-                    onClick={() => props.onEdit?.(row)}
-                  >
-                    {edit}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="px-2 py-1 text-sm text-red-400 hover:text-red-300"
-                  onClick={() => props.onRemoveOne(row)}
-                >
-                  {remove}
-                </button>
-              </div>
-            </li>
-          ))
-        )}
-      </ul>
+      {sections ? (
+        sections.map((section) => (
+          <section key={section.id} className="flex flex-col gap-2">
+            <h3 className="text-sm font-medium">
+              {fillText(strings.questionListSection, {
+                label: section.label,
+                count: section.questions.length,
+              })}
+            </h3>
+            <ul className="rounded border border-slate-700">
+              {section.questions.length === 0 ? (
+                <li className="p-3 text-sm text-slate-400">{empty}</li>
+              ) : (
+                section.questions.map((row) => renderRow(row, `${section.id}:${row.id}`))
+              )}
+            </ul>
+          </section>
+        ))
+      ) : (
+        <ul className="max-h-[28rem] overflow-auto rounded border border-slate-700">
+          {props.filtered.length === 0 ? (
+            <li className="p-3 text-sm text-slate-400">{empty}</li>
+          ) : (
+            props.filtered.map((row) => renderRow(row, row.id))
+          )}
+        </ul>
+      )}
     </>
   )
 }

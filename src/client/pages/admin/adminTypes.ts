@@ -12,5 +12,7 @@ export type AdminPlace = {
   selectedCategoryId?: string
   selectedTopicId?: string
   selectedDifficulty?: string
+  /** Every difficulty open on the question list. One entry is a normal Edit. */
+  selectedDifficulties?: string[]
   catalogOwner?: { id: string; username: string } | null
 }

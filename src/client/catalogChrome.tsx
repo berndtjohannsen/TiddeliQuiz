@@ -103,6 +103,10 @@ export function CatalogListRow(props: {
   onEdit?: () => void
   editLabel: string
   deleteLabel: string
+  /** Move this row's contents somewhere else. */
+  onMove?: () => void
+  moveLabel?: string
+  moveDisabled?: boolean
 }) {
   return (
     <li className="flex items-start gap-2 border-b border-slate-800 last:border-b-0">
@@ -115,6 +119,16 @@ export function CatalogListRow(props: {
         <span className="mt-1 block text-xs text-slate-400">{props.subtitle}</span>
       </button>
       <div className="flex shrink-0 gap-1 px-2 py-2">
+        {props.onMove ? (
+          <button
+            type="button"
+            className={`${btnLink} disabled:opacity-50`}
+            disabled={props.moveDisabled}
+            onClick={props.onMove}
+          >
+            {props.moveLabel}
+          </button>
+        ) : null}
         <button type="button" className={btnLink} onClick={props.onEdit ?? props.onOpen}>
           {props.editLabel}
         </button>

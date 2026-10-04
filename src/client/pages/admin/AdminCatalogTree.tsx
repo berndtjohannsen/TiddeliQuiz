@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { AdminConfig, Category, Difficulty, PlayerPublic, Topic } from '../../../shared/types'
 import {
   Breadcrumb,
@@ -76,6 +77,8 @@ export function AdminCatalogTree(props: {
   onAskRemoveCategoryFromList: (id: string) => void
   onCancelPendingRemove: () => void
   onRemoveCategory: (id: string) => void
+  onMoveQuestions: (fromId: string, toId: string) => Promise<boolean>
+  onClearError: () => void
   onAddTopic: () => void
   onOpenQuestions: (id: string) => void
   onAskRemoveTopic: (id: string) => void
@@ -103,6 +106,8 @@ export function AdminCatalogTree(props: {
   if (!treeLevels.includes(props.level)) {
     return null
   }
+  const [moveFromId, setMoveFromId] = useState<string | null>(null)
+  const [moveToId, setMoveToId] = useState('')
   const scope = props.userScope
   const cat = props.selectedCategory
   const topic = props.selectedTopic
@@ -337,6 +342,19 @@ export function AdminCatalogTree(props: {
                         .join(' · ')}`}
                       onOpen={() => props.onOpenQuestions(t.id)}
                       onDelete={() => props.onAskRemoveTopic(t.id)}
+                      onMove={() => {
+                        const others = props.config.categories.filter(
+                          (row) => row.id !== t.categoryId && row.name.trim(),
+                        )
+                        props.onClearError()
+                        setMoveFromId(t.id)
+                        setMoveToId(others[0]?.id ?? '')
+                      }}
+                      moveLabel={strings.moveQuestions}
+                      moveDisabled={
+                        props.config.categories.filter((row) => row.id !== t.categoryId && row.name.trim())
+                          .length === 0
+                      }
                       editLabel={strings.edit}
                       deleteLabel={strings.remove}
                     />
@@ -432,6 +450,63 @@ export function AdminCatalogTree(props: {
         </EditSubjectForm>
       ) : null}
       {removeDialog}
+      {moveFromId ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setMoveFromId(null)}
+        >
+          <form
+            className="flex w-full max-w-md flex-col gap-3 rounded-lg border border-slate-600 bg-slate-900 p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault()
+              const fromId = moveFromId
+              void props.onMoveQuestions(fromId, moveToId).then((ok) => {
+                if (ok) {
+                  setMoveFromId(null)
+                }
+              })
+            }}
+          >
+            <h2 className="text-lg font-medium">{strings.moveQuestionsTitle}</h2>
+            <p className="text-sm text-slate-300">
+              {fillText(strings.moveQuestionsHint, {
+                name: props.config.topics.find((row) => row.id === moveFromId)?.name ?? '',
+              })}
+            </p>
+            <Field label={strings.moveQuestionsTo}>
+              <select
+                className={inputClass}
+                value={moveToId}
+                onChange={(e) => setMoveToId(e.target.value)}
+              >
+                {props.config.categories
+                  .filter(
+                    (row) =>
+                      row.name.trim() &&
+                      row.id !== props.config.topics.find((topic) => topic.id === moveFromId)?.categoryId,
+                  )
+                  .map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            {props.error ? <p className="text-sm text-red-400">{props.error}</p> : null}
+            <div className="flex flex-wrap gap-3">
+              <button type="submit" className={btnClass} disabled={!moveToId}>
+                {strings.moveQuestions}
+              </button>
+              <button type="button" className={btnSecondary} onClick={() => setMoveFromId(null)}>
+                {strings.cancel}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
       {props.topicRenameOpen ? (
         <PromptDialog
           title={strings.renameSubject}

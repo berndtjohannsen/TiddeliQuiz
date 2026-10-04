@@ -3,6 +3,7 @@ import type { AdminConfig, BankCount, Category, Difficulty, PlayerPublic, Topic 
 import {
   emptyCategory,
   emptyTopic,
+  fillText,
   isDraft,
   suggestedPrompt,
   topicApiFields,
@@ -335,6 +336,38 @@ export function useAdminFolders(opts: {
     goContentHome()
   }
 
+  /** Move one subject, and the questions on it, to another category. */
+  async function moveTopicToCategory(topicId: string, toCategoryId: string) {
+    if (!config) {
+      return false
+    }
+    const topic = config.topics.find((t) => t.id === topicId)
+    if (!topic || !toCategoryId || topic.categoryId === toCategoryId) {
+      setError(strings.moveQuestionsSame)
+      return false
+    }
+    setError('')
+    if (!isDraft(topicId)) {
+      const data = await adminCatalogJson<{ topic: Topic }>(
+        catalogOwner,
+        'POST',
+        `/topics/${encodeURIComponent(topicId)}/move`,
+        { targetCategoryId: toCategoryId },
+        setError,
+        () => {},
+      )
+      if (!data) {
+        return false
+      }
+    }
+    setConfig({
+      ...config,
+      topics: config.topics.map((t) => (t.id === topicId ? { ...t, categoryId: toCategoryId } : t)),
+    })
+    setMessage(fillText(strings.moveQuestionsDone, { name: topic.name }))
+    return true
+  }
+
   /** Delete a category and every subject in it. Call only after the warning screen. */
   async function removeCategory(id: string) {
     if (!config) {
@@ -494,6 +527,7 @@ export function useAdminFolders(opts: {
     askRemoveCategoryFromList,
     cancelPendingRemove,
     removeCategory,
+    moveTopicToCategory,
     askRemoveTopic,
     askClearQuestions,
     askClearDifficulty,

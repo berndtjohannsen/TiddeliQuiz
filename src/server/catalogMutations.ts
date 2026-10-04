@@ -10,7 +10,7 @@ import {
   withCatalogAuth,
   type CatalogAuth,
 } from './httpParse'
-import { addCategory, addTopic, removeCategory, removeTopic, renameCategory, updateTopic, type CatalogOwner } from './store'
+import { addCategory, addTopic, moveTopicToCategory, removeCategory, removeTopic, renameCategory, updateTopic, type CatalogOwner } from './store'
 
 async function handlePostCategory(c: Context, owner: CatalogOwner, who: string) {
   const parsed = parseCategoryName(await c.req.json<{ name?: string }>())
@@ -90,6 +90,19 @@ async function handlePutTopic(c: Context, owner: CatalogOwner, who: string) {
   return c.json({ topic: result.topic })
 }
 
+async function handleMoveTopic(c: Context, owner: CatalogOwner, who: string) {
+  const body = await c.req.json<{ targetCategoryId?: string }>()
+  const result = moveTopicToCategory(owner, routeParam(c, 'id'), String(body.targetCategoryId ?? ''))
+  if ('error' in result) {
+    if (result.error === 'invalid') {
+      return c.json({ error: 'Pick a different category' }, 400)
+    }
+    return catalogFail(c, result.error)
+  }
+  log('info', `${who} moved subject ${result.topic.name} to another category`)
+  return c.json({ topic: result.topic })
+}
+
 function handleDeleteTopic(c: Context, owner: CatalogOwner, who: string) {
   const result = removeTopic(owner, routeParam(c, 'id'))
   if ('error' in result) {
@@ -99,7 +112,7 @@ function handleDeleteTopic(c: Context, owner: CatalogOwner, who: string) {
   return c.json({ ok: true, bankCounts: countsForOwner(owner) })
 }
 
-/** Same six row routes for player, platform admin, and admin-as-user. */
+/** Same catalog row routes for player, platform admin, and admin-as-user. */
 export function mountCatalogMutations(
   app: Hono,
   prefix: string,
@@ -109,6 +122,7 @@ export function mountCatalogMutations(
   app.put(`${prefix}/categories/:id`, withCatalogAuth(resolve, handlePutCategory))
   app.delete(`${prefix}/categories/:id`, withCatalogAuth(resolve, handleDeleteCategory))
   app.post(`${prefix}/topics`, withCatalogAuth(resolve, handlePostTopic))
+  app.post(`${prefix}/topics/:id/move`, withCatalogAuth(resolve, handleMoveTopic))
   app.put(`${prefix}/topics/:id`, withCatalogAuth(resolve, handlePutTopic))
   app.delete(`${prefix}/topics/:id`, withCatalogAuth(resolve, handleDeleteTopic))
 }

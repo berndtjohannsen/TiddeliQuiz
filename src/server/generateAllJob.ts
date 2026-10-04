@@ -96,36 +96,42 @@ async function runGenerateAllJob(
   },
 ) {
   try {
-    const difficulty = opts.difficulties[0]
-    job.rows = job.rows.map((row) => ({ ...row, status: 'working' as const }))
-    try {
-      const questions = await generateQuizRound({
-        topic: opts.topic,
-        count: opts.count,
-        difficulty,
-        exclude: opts.exclude(difficulty).slice(0, 60).map((q) => q.slice(0, 200)),
-      })
-      const { added, skipped } = opts.append(difficulty, questions, opts.difficulties)
-      job.added = added
-      job.skipped = skipped
-      job.rows = job.rows.map((row) => ({
-        ...row,
-        status: 'done' as const,
-        added,
-        skipped,
-      }))
-      job.bankCounts = opts.counts()
-      log(
-        'info',
-        `${opts.who} generate selected: +${added} for ${opts.topic.name} (${opts.difficulties.join(', ')}), skipped ${skipped}`,
+    for (const difficulty of opts.difficulties) {
+      job.rows = job.rows.map((row) =>
+        row.id === difficulty ? { ...row, status: 'working' as const } : row,
       )
-    } catch (err) {
-      job.failed.push(...opts.difficulties)
-      job.rows = job.rows.map((row) => ({ ...row, status: 'failed' as const }))
-      if (isCancelledError(err)) {
-        log('info', `${opts.who} generate selected cancelled for ${opts.topic.name}`)
-      } else {
-        log('error', `${opts.who} generate selected failed for ${opts.topic.name}: ${String(err)}`)
+      try {
+        const questions = await generateQuizRound({
+          topic: opts.topic,
+          count: opts.count,
+          difficulty,
+          exclude: opts.exclude(difficulty).slice(0, 60).map((q) => q.slice(0, 200)),
+        })
+        // This level only. A shared batch would show the same questions on every ticked level.
+        const { added, skipped } = opts.append(difficulty, questions, [difficulty])
+        job.added += added
+        job.skipped += skipped
+        job.rows = job.rows.map((row) =>
+          row.id === difficulty ? { ...row, status: 'done' as const, added, skipped } : row,
+        )
+        job.bankCounts = opts.counts()
+        log(
+          'info',
+          `${opts.who} generate selected: +${added} ${difficulty} for ${opts.topic.name}, skipped ${skipped}`,
+        )
+      } catch (err) {
+        job.failed.push(difficulty)
+        job.rows = job.rows.map((row) =>
+          row.id === difficulty ? { ...row, status: 'failed' as const } : row,
+        )
+        if (isCancelledError(err)) {
+          job.rows = job.rows.map((row) =>
+            row.status === 'waiting' ? { ...row, status: 'failed' as const } : row,
+          )
+          log('info', `${opts.who} generate selected cancelled for ${opts.topic.name}`)
+          break
+        }
+        log('error', `${opts.who} generate selected failed for ${opts.topic.name} ${difficulty}: ${String(err)}`)
       }
     }
   } finally {

@@ -12,6 +12,8 @@ export type ResolvedAdminPlace =
       topicId: string
       level: AdminCatalogLevel
       difficulty: Difficulty
+      /** Question list to restore. Several entries means Edit selected. */
+      difficulties: Difficulty[]
       loadQuestions: boolean
     }
 
@@ -38,6 +40,7 @@ export function writeAdminPlace(place: {
   selectedCategoryId: string
   selectedTopicId: string
   selectedDifficulty: Difficulty
+  selectedDifficulties: Difficulty[]
   catalogOwner: { id: string; username: string } | null
 }) {
   sessionStorage.setItem(ADMIN_PLACE_KEY, JSON.stringify(place))
@@ -96,17 +99,21 @@ export function resolveAdminPlace(place: AdminPlace, data: AdminConfig): Resolve
   if (nextLevel === 'subjects' && !catOk) {
     nextLevel = 'categories'
   }
+  const allowed: Difficulty[] = ['hard', 'medium', 'easy', 'children']
   const difficulty: Difficulty =
-    place.selectedDifficulty &&
-    ['hard', 'medium', 'easy', 'children'].includes(place.selectedDifficulty)
+    place.selectedDifficulty && allowed.includes(place.selectedDifficulty as Difficulty)
       ? (place.selectedDifficulty as Difficulty)
       : 'medium'
+  const picked = (place.selectedDifficulties ?? []).filter((id): id is Difficulty =>
+    allowed.includes(id as Difficulty),
+  )
   return {
     kind: 'catalog',
     categoryId: catOk ? catId : '',
     topicId: topicOk ? topicId : '',
     level: nextLevel,
     difficulty,
+    difficulties: picked.length ? picked : [difficulty],
     loadQuestions: nextLevel === 'question-list' && topicOk,
   }
 }

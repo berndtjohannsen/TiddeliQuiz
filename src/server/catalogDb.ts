@@ -392,6 +392,13 @@ export function dbDeleteTopic(id: string) {
   openCatalogDb().prepare(`DELETE FROM topics WHERE id = ?`).run(id)
 }
 
+/** Move one subject to another category. Its questions stay on that subject. */
+export function dbMoveTopicToCategory(topicId: string, toCategoryId: string) {
+  openCatalogDb()
+    .prepare(`UPDATE topics SET category_id = ?, updated_at = ? WHERE id = ?`)
+    .run(toCategoryId, nowIso(), topicId)
+}
+
 export function dbLoadQuestions(filter: {
   topicId?: string
   difficulty?: Difficulty

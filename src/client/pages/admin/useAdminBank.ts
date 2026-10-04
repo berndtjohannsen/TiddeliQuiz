@@ -39,6 +39,9 @@ export function useAdminBank(opts: {
   const [listDifficulties, setListDifficulties] = useState<Difficulty[]>(['medium'])
   const listDifficultiesRef = useRef(listDifficulties)
   listDifficultiesRef.current = listDifficulties
+  /** One list per difficulty, in the same order as Edit on that row. */
+  const [questionGroups, setQuestionGroups] = useState<{ difficulty: Difficulty; questions: StoredQuestion[] }[]>([])
+  const [listLoading, setListLoading] = useState(false)
   /** Ignore a question-list response that started before a newer load. */
   const listFetchSeq = useRef(0)
   const [bankQuestions, setBankQuestions] = useState<StoredQuestion[]>([])
@@ -63,6 +66,8 @@ export function useAdminBank(opts: {
 
   function resetBank() {
     setBankQuestions([])
+    setQuestionGroups([])
+    setListLoading(false)
     setQuestionDraft(null)
     setSelectedQuestionIds([])
     setPendingRemoveIds([])
@@ -72,11 +77,26 @@ export function useAdminBank(opts: {
     return bankDifficulties.map((d) => d.id).filter((id) => ids.includes(id))
   }
 
+  /** Remember which difficulties the open list is for, before the fetch returns. */
+  function rememberList(ids: Difficulty[]) {
+    const picked = orderedDifficulties(ids)
+    const next = picked.length ? picked : (['medium'] as Difficulty[])
+    listDifficultiesRef.current = next
+    setListDifficulties(next)
+    setSelectedDifficulty(next[0])
+    return next
+  }
+
   async function fetchBankQuestions(topicId: string, difficulty: Difficulty | Difficulty[]) {
     const seq = ++listFetchSeq.current
     const wanted = orderedDifficulties(Array.isArray(difficulty) ? difficulty : [difficulty])
     const questionsPath = `${adminCatalogBase(opts.catalogOwner)}/bank/questions`
-    const lists: StoredQuestion[][] = []
+    // Drop the previous level's rows so they are not shown as the combined list.
+    setListLoading(true)
+    setQuestionGroups([])
+    setBankQuestions([])
+    const groups: { difficulty: Difficulty; questions: StoredQuestion[] }[] = []
+    let failed = false
     for (const level of wanted) {
       const res = await fetch(
         `${questionsPath}?topicId=${encodeURIComponent(topicId)}&difficulty=${encodeURIComponent(level)}`,
@@ -86,18 +106,20 @@ export function useAdminBank(opts: {
         return
       }
       if (!res.ok) {
-        opts.setError(strings.loadFailed)
-        return
+        failed = true
+        groups.push({ difficulty: level, questions: [] })
+        continue
       }
       const data = (await res.json()) as { questions?: StoredQuestion[] }
-      lists.push(data.questions ?? [])
+      groups.push({ difficulty: level, questions: data.questions ?? [] })
     }
     if (seq !== listFetchSeq.current) {
       return
     }
     const seen = new Set<string>()
+    setQuestionGroups(groups)
     setBankQuestions(
-      lists.flat().filter((row) => {
+      groups.flatMap((group) => group.questions).filter((row) => {
         if (seen.has(row.id)) {
           return false
         }
@@ -106,6 +128,10 @@ export function useAdminBank(opts: {
       }),
     )
     setSelectedQuestionIds([])
+    setListLoading(false)
+    if (failed) {
+      opts.setError(strings.loadFailed)
+    }
   }
 
   async function runGenerate(
@@ -255,12 +281,11 @@ export function useAdminBank(opts: {
     if (!opts.selectedTopicId) {
       return
     }
-    setSelectedDifficulty(difficulty)
-    setListDifficulties([difficulty])
+    const picked = rememberList([difficulty])
     opts.setQuery('')
     opts.setLevel('question-list')
     opts.setError('')
-    await fetchBankQuestions(opts.selectedTopicId, difficulty)
+    await fetchBankQuestions(opts.selectedTopicId, picked)
   }
 
   /** Question list for the ticked difficulties, instead of one level at a time. */
@@ -268,13 +293,17 @@ export function useAdminBank(opts: {
     if (!opts.selectedTopicId || generateDifficulties.length === 0) {
       return
     }
-    const picked = orderedDifficulties(generateDifficulties)
-    setSelectedDifficulty(picked[0])
-    setListDifficulties(picked)
+    const picked = rememberList(generateDifficulties)
     opts.setQuery('')
     opts.setLevel('question-list')
     opts.setError('')
     await fetchBankQuestions(opts.selectedTopicId, picked)
+  }
+
+  /** After a reload, open the same difficulties Edit selected had open. */
+  function restoreQuestionList(topicId: string, difficulties: Difficulty[]) {
+    const picked = rememberList(difficulties)
+    void fetchBankQuestions(topicId, picked)
   }
 
   function openEditQuestion(row: StoredQuestion) {
@@ -496,8 +525,11 @@ export function useAdminBank(opts: {
     generatingDifficulty,
     selectedDifficulty,
     listDifficulties,
+    questionGroups,
+    listLoading,
     setSelectedDifficulty,
     bankQuestions,
+    restoreQuestionList,
     questionDraft,
     filteredBankQuestions,
     selectedQuestionIds,

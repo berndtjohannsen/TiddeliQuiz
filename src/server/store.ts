@@ -14,6 +14,7 @@ import {
   dbInsertTopic,
   dbLoadCatalog,
   dbLoadQuestions,
+  dbMoveTopicToCategory,
   dbUpdateCategory,
   dbUpdateQuestion,
   dbUpdateTopic,
@@ -210,6 +211,26 @@ export function removeCategory(
   }
   dbDeleteCategory(id)
   return { ok: true }
+}
+
+/** Move one subject, and the questions on it, to another category. */
+export function moveTopicToCategory(
+  owner: CatalogOwner,
+  topicId: string,
+  toCategoryId: string,
+): { topic: Topic } | { error: 'not_found' | 'invalid' } {
+  const catalog = loadCatalog()
+  const existing = catalog.topics.find((t) => t.id === topicId)
+  const to = catalog.categories.find((c) => c.id === toCategoryId)
+  if (!existing || !topicOwnedBy(catalog, existing, owner) || !to || !categoryOwnedBy(to, owner)) {
+    return { error: 'not_found' }
+  }
+  if (existing.categoryId === to.id) {
+    return { error: 'invalid' }
+  }
+  const topic = { ...existing, categoryId: to.id }
+  dbMoveTopicToCategory(topic.id, to.id)
+  return { topic }
 }
 
 export function addTopic(
