@@ -715,7 +715,11 @@ function drawOwnedRound(
   if (pool.length === 0) {
     return { available: 0, reason: 'empty' }
   }
-  const skip = new Set(exclude.map((q) => q.trim().toLowerCase()).filter(Boolean))
+  // "Alla" asks for the whole pool. Questions already played this visit still belong in that round.
+  const wholeBank = count >= pool.length
+  const skip = wholeBank
+    ? new Set<string>()
+    : new Set(exclude.map((q) => q.trim().toLowerCase()).filter(Boolean))
   const unseen = shuffleList(pool.filter((q) => !skip.has(q.question.trim().toLowerCase())))
   if (unseen.length === 0) {
     return { available: 0, reason: 'no_new' }
