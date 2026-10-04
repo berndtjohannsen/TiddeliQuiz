@@ -358,7 +358,8 @@ export function StartForm(props: {
         >
           {props.countChoices.map((n, index) => (
             <option key={n} value={n}>
-              {index === 0 ? strings.difficultyAll : n}
+              {/* First choice is every question for the selected difficulty, not a fixed 10. */}
+              {index === 0 ? `${strings.difficultyAll} (${n})` : n}
             </option>
           ))}
         </select>

@@ -218,12 +218,40 @@ export function useHomePage() {
 
   function onCount(value: number) {
     setStartError('')
+    // A restored round must not put the old number back after the player picks one.
+    pinnedCount.current = null
     setCount(value)
   }
 
   function onDifficulty(value: PlayDifficulty) {
     setStartError('')
+    pinnedCount.current = null
     setDifficulty(value)
+    // Alla on the previous level is often 10. Switch the number to this level's full bank now.
+    const all = roundAllCount(bankAvailable(bankCounts, topicId, value))
+    if (all) {
+      setCount(all)
+    }
+  }
+
+  /** Difficulty and count as shown in the form, including a choice made in this same submit. */
+  function chosenRound(form?: HTMLFormElement): { count: number; difficulty: PlayDifficulty } {
+    const diffEl = form?.elements.namedItem('difficulty')
+    const countEl = form?.elements.namedItem('count')
+    const nextDifficulty =
+      diffEl instanceof HTMLSelectElement && isPlayDifficulty(diffEl.value) ? diffEl.value : difficulty
+    const available = bankAvailable(bankCounts, topicId, nextDifficulty)
+    const all = roundAllCount(available)
+    // The first row is "Alla". Its old value can still be 10 until React redraws the list.
+    if (countEl instanceof HTMLSelectElement && countEl.selectedIndex === 0 && all) {
+      return { count: all, difficulty: nextDifficulty }
+    }
+    const raw = countEl instanceof HTMLSelectElement ? Number(countEl.value) : count
+    const choices = roundCountChoices(available)
+    return {
+      count: choices.includes(raw) ? raw : all || count,
+      difficulty: nextDifficulty,
+    }
   }
 
   async function startRound(
@@ -299,7 +327,8 @@ export function useHomePage() {
 
   async function onStart(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    await startRound(topicId, categoryId, count, difficulty)
+    const chosen = chosenRound(e.currentTarget)
+    await startRound(topicId, categoryId, chosen.count, chosen.difficulty)
   }
 
   async function onReplayBank() {
