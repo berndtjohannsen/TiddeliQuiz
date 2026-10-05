@@ -5,6 +5,7 @@ import {
   Breadcrumb,
   ConfirmDialog,
   Field,
+  bankDifficulties,
   btnClass,
   btnDangerText,
   btnSecondary,
@@ -171,6 +172,19 @@ export function AdminQuestions(props: {
       }}
     >
       <Breadcrumb chrome="admin" userScope={props.userScope} parts={path} />
+      <Field label={strings.questionDifficulty}>
+        <select
+          className={inputClass}
+          value={props.draft.difficulty}
+          onChange={(e) => props.onPatchDraft({ difficulty: e.target.value as Difficulty })}
+        >
+          {bankDifficulties.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+      </Field>
       <Field label={strings.questionText}>
         <textarea
           className={`${inputClass} min-h-20`}

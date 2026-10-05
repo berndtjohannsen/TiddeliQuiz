@@ -238,7 +238,12 @@ export function mountAdminApi(app: Hono) {
       correctIndex?: number
       explanation?: string
       sourceUrl?: string
+      difficulty?: string
     }>()
+    const difficulty = parseOptionalDifficulty(body.difficulty)
+    if (body.difficulty != null && body.difficulty !== '' && !difficulty) {
+      return c.json({ error: 'Invalid question' }, 400)
+    }
     const options = Array.isArray(body.options)
       ? body.options.map((o) => String(o ?? '').trim()).filter(Boolean)
       : []
@@ -252,6 +257,7 @@ export function mountAdminApi(app: Hono) {
       correctIndex,
       explanation: String(body.explanation ?? ''),
       sourceUrl: String(body.sourceUrl ?? ''),
+      difficulty,
     })
     if ('error' in result) {
       if (result.error === 'duplicate') {

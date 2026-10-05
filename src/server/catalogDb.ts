@@ -533,16 +533,36 @@ export function dbInsertQuestion(row: StoredQuestion, hiddenDifficulties?: Diffi
   tx()
 }
 
-export function dbUpdateQuestion(row: StoredQuestion) {
+/** This question plays on one level only. Other levels stay hidden. */
+function metaForOneDifficulty(difficulty: Difficulty) {
+  const hidden = COUNT_DIFFICULTIES.filter((id) => id !== difficulty)
+  return { playAllDifficulties: true, hiddenDifficulties: hidden }
+}
+
+export function dbUpdateQuestion(row: StoredQuestion, previousDifficulty?: Difficulty) {
   const database = openCatalogDb()
   const ownerType = row.ownerType === 'user' ? 'user' : 'platform'
   const ownerId = ownerType === 'user' ? row.ownerId ?? null : null
+  const moved = previousDifficulty != null && previousDifficulty !== row.difficulty
   const tx = database.transaction(() => {
-    database
-      .prepare(
-        `UPDATE questions SET question = ?, explanation = ?, updated_at = ? WHERE id = ?`,
-      )
-      .run(row.question, row.explanation, nowIso(), row.id)
+    if (moved) {
+      database
+        .prepare(
+          `UPDATE questions SET question = ?, explanation = ?, difficulty = ?, meta_json = ?, updated_at = ? WHERE id = ?`,
+        )
+        .run(
+          row.question,
+          row.explanation,
+          row.difficulty,
+          JSON.stringify(metaForOneDifficulty(row.difficulty)),
+          nowIso(),
+          row.id,
+        )
+    } else {
+      database
+        .prepare(`UPDATE questions SET question = ?, explanation = ?, updated_at = ? WHERE id = ?`)
+        .run(row.question, row.explanation, nowIso(), row.id)
+    }
     replaceOptions(database, row.id, row.options, row.correctIndex)
     replaceQuestionUrl(database, row.id, row.sourceUrl, ownerType, ownerId)
   })

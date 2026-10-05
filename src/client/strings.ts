@@ -210,6 +210,7 @@ export const strings = {
   questionListLoading: 'Loading questions…',
   questionListEmpty: 'No questions at this difficulty. Generate to add some.',
   questionText: 'Question',
+  questionDifficulty: 'Difficulty',
   questionOption: 'Option {n}',
   questionCorrect: 'Correct',
   questionExplanation: 'Explanation',

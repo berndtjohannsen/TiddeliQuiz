@@ -732,7 +732,9 @@ function drawOwnedRound(
 /** Update one stored question. Duplicate text in the same bank is rejected. */
 export function updateBankQuestion(
   id: string,
-  patch: Pick<StoredQuestion, 'question' | 'options' | 'correctIndex' | 'explanation' | 'sourceUrl'>,
+  patch: Pick<StoredQuestion, 'question' | 'options' | 'correctIndex' | 'explanation' | 'sourceUrl'> & {
+    difficulty?: Difficulty
+  },
 ): { question: StoredQuestion } | { error: 'not_found' | 'duplicate' } {
   const current = dbGetQuestion(id)
   if (!current) {
@@ -744,6 +746,7 @@ export function updateBankQuestion(
     options: patch.options.map((o) => o.trim()),
     correctIndex: patch.correctIndex,
     explanation: patch.explanation.trim(),
+    difficulty: patch.difficulty ?? current.difficulty,
   }
   if (patch.sourceUrl?.trim()) {
     next.sourceUrl = patch.sourceUrl.trim()
@@ -756,17 +759,17 @@ export function updateBankQuestion(
   if (duplicate) {
     return { error: 'duplicate' }
   }
-  dbUpdateQuestion(next)
+  dbUpdateQuestion(next, current.difficulty)
   return { question: next }
 }
 
-/** Delete one stored question and copies of it in the same subject. */
+/** Delete one stored question. A similar question on another level stays. */
 export function deleteBankQuestion(id: string): StoredQuestion | null {
   const row = dbGetQuestion(id)
   if (!row) {
     return null
   }
-  dbDeleteQuestions(idsWithCopies(row))
+  dbDeleteQuestions([row.id])
   return row
 }
 
@@ -776,23 +779,7 @@ function ownsQuestion(row: StoredQuestion, owner: CatalogOwner) {
     : row.ownerType !== 'user'
 }
 
-/** The chosen row plus copies of the same question stored at other difficulties. */
-function idsWithCopies(row: StoredQuestion) {
-  const ids = [row.id]
-  const siblings = dbLoadQuestions({
-    topicId: row.topicId,
-    ownerType: row.ownerType,
-    ownerId: row.ownerId,
-  })
-  for (const sibling of siblings) {
-    if (sibling.id !== row.id && questionsAreDuplicates(sibling, row)) {
-      ids.push(sibling.id)
-    }
-  }
-  return ids
-}
-
-/** Delete many questions that belong to this owner. Unknown or foreign ids are skipped. */
+/** Delete the chosen questions only. A similar question on another level stays. */
 export function deleteBankQuestions(
   ids: string[],
   owner: CatalogOwner,
@@ -803,9 +790,7 @@ export function deleteBankQuestions(
     if (!row || !ownsQuestion(row, owner)) {
       continue
     }
-    for (const matchId of idsWithCopies(row)) {
-      ownedIds.add(matchId)
-    }
+    ownedIds.add(row.id)
   }
   const removed = dbDeleteQuestions([...ownedIds])
   return {

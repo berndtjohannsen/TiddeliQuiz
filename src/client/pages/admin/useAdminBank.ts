@@ -407,6 +407,7 @@ export function useAdminBank(opts: {
         correctIndex,
         explanation: questionDraft.explanation,
         sourceUrl: questionDraft.sourceUrl ?? '',
+        difficulty: questionDraft.difficulty,
       }),
     })
     const data = (await res.json()) as { error?: string; bankCounts?: BankCount[] }
