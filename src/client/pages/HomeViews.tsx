@@ -73,7 +73,9 @@ export function PlayCatalogBlock(props: {
   const categories = props.categories.slice().sort(compareSwedishName)
   const selected = props.active ? props.categoryId : ''
   const hasCategory = Boolean(selected)
-  const topicsHere = hasCategory ? props.topics.filter((t) => t.categoryId === selected) : []
+  const topicsHere = hasCategory
+    ? props.topics.filter((t) => t.categoryId === selected).slice().sort(compareSwedishName)
+    : []
   const showLoading = props.status === 'loading'
   const showError = props.status === 'error'
   const noCats = !showLoading && !showError && props.categories.length === 0
