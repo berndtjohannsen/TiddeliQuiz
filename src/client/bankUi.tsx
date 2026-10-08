@@ -332,7 +332,9 @@ export function BankQuestionList(props: {
   /** Edit selected: one block per ticked difficulty, on the page rather than one shared scroller. */
   sections?: BankQuestionSection[]
   loading?: boolean
-  onRemoveOne: (row: StoredQuestion) => void
+  /** When set, a single-level list removes from this difficulty only. */
+  listDifficulty?: string
+  onRemoveOne: (row: StoredQuestion, fromDifficulty?: string) => void
   onRemoveSelected: () => void
   onRemoveAll: () => void
 }) {
@@ -366,14 +368,15 @@ export function BankQuestionList(props: {
     return <p className="text-sm text-slate-400">{empty}</p>
   }
 
-  function renderRow(row: StoredQuestion, key: string) {
+  function renderRow(row: StoredQuestion, key: string, fromDifficulty?: string) {
+    const selectionId = fromDifficulty ? `${fromDifficulty}:${row.id}` : row.id
     return (
       <li key={key} className="flex items-start gap-2 border-b border-slate-800 last:border-b-0">
         <label className="flex shrink-0 items-start px-2 py-3">
           <input
             type="checkbox"
-            checked={props.selectedIds.includes(row.id)}
-            onChange={() => props.onToggle(row.id)}
+            checked={props.selectedIds.includes(selectionId)}
+            onChange={() => props.onToggle(selectionId)}
             aria-label={row.question}
           />
         </label>
@@ -398,7 +401,7 @@ export function BankQuestionList(props: {
           <button
             type="button"
             className="px-2 py-1 text-sm text-red-400 hover:text-red-300"
-            onClick={() => props.onRemoveOne(row)}
+            onClick={() => props.onRemoveOne(row, fromDifficulty)}
           >
             {remove}
           </button>
@@ -456,7 +459,7 @@ export function BankQuestionList(props: {
               {section.questions.length === 0 ? (
                 <li className="p-3 text-sm text-slate-400">{empty}</li>
               ) : (
-                section.questions.map((row) => renderRow(row, `${section.id}:${row.id}`))
+                section.questions.map((row) => renderRow(row, `${section.id}:${row.id}`, section.id))
               )}
             </ul>
           </section>
@@ -466,7 +469,7 @@ export function BankQuestionList(props: {
           {props.filtered.length === 0 ? (
             <li className="p-3 text-sm text-slate-400">{empty}</li>
           ) : (
-            props.filtered.map((row) => renderRow(row, row.id))
+            props.filtered.map((row) => renderRow(row, row.id, props.listDifficulty))
           )}
         </ul>
       )}

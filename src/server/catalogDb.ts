@@ -652,6 +652,55 @@ export function dbDeleteQuestion(id: string): StoredQuestion | null {
   return row
 }
 
+/** Levels where this row is actually played. Older rows stay on their stored level. */
+function levelsForQuestion(stored: string, metaJson: string | null): Difficulty[] {
+  const meta = questionMeta(metaJson)
+  if (meta.playAllDifficulties !== true) {
+    return COUNT_DIFFICULTIES.includes(stored as Difficulty) ? [stored as Difficulty] : []
+  }
+  const hidden = new Set(meta.hiddenDifficulties ?? [])
+  return COUNT_DIFFICULTIES.filter((id) => !hidden.has(id))
+}
+
+/** Take a question off one difficulty. Delete the row only when that was its last level. */
+export function dbRemoveQuestionsOnDifficulty(items: { id: string; difficulty: Difficulty }[]): number {
+  if (!items.length) {
+    return 0
+  }
+  const database = openCatalogDb()
+  const read = database.prepare(`SELECT difficulty, meta_json AS metaJson FROM questions WHERE id = ?`)
+  const del = database.prepare(`DELETE FROM questions WHERE id = ?`)
+  const update = database.prepare(`UPDATE questions SET meta_json = ?, updated_at = ? WHERE id = ?`)
+  const tx = database.transaction(() => {
+    let n = 0
+    for (const item of items) {
+      const row = read.get(item.id) as { difficulty: string; metaJson: string } | undefined
+      if (!row) {
+        continue
+      }
+      const levels = levelsForQuestion(row.difficulty, row.metaJson)
+      if (!levels.includes(item.difficulty)) {
+        continue
+      }
+      const rest = levels.filter((id) => id !== item.difficulty)
+      if (rest.length === 0) {
+        n += del.run(item.id).changes
+        continue
+      }
+      const meta = questionMeta(row.metaJson)
+      const hidden = COUNT_DIFFICULTIES.filter((id) => !rest.includes(id))
+      update.run(
+        JSON.stringify({ ...meta, playAllDifficulties: true, hiddenDifficulties: hidden }),
+        nowIso(),
+        item.id,
+      )
+      n += 1
+    }
+    return n
+  })
+  return tx()
+}
+
 export function dbDeleteQuestions(ids: string[]): number {
   if (!ids.length) {
     return 0

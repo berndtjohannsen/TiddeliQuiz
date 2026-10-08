@@ -314,9 +314,35 @@ export function useAdminBank(opts: {
   }
 
   /** Warning screen, then delete. From the list so Admin does not have to open the editor first. */
-  function startRemoveQuestion(row: StoredQuestion) {
+  /** `hard:<id>` removes that level only. A bare id deletes the whole stored question. */
+  function removalItems(keys: string[]) {
+    return keys.map((key) => {
+      const split = key.indexOf(':')
+      const head = split > 0 ? key.slice(0, split) : ''
+      const difficulty = bankDifficulties.some((d) => d.id === head) ? (head as Difficulty) : undefined
+      return difficulty ? { id: key.slice(split + 1), difficulty } : { id: key }
+    })
+  }
+
+  function visibleRemovalKeys() {
+    const q = opts.query.trim().toLowerCase()
+    if (listDifficulties.length > 1) {
+      return questionGroups.flatMap((group) =>
+        group.questions
+          .filter((row) => questionMatchesQuery(row, q))
+          .map((row) => `${group.difficulty}:${row.id}`),
+      )
+    }
+    const difficulty = listDifficulties[0]
+    return bankQuestions
+      .filter((row) => questionMatchesQuery(row, q))
+      .map((row) => (difficulty ? `${difficulty}:${row.id}` : row.id))
+  }
+
+  function startRemoveQuestion(row: StoredQuestion, fromDifficulty?: string) {
+    const difficulty = fromDifficulty || listDifficultiesRef.current[0] || row.difficulty
     setQuestionDraft({ ...row, options: [...row.options] })
-    setPendingRemoveIds([row.id])
+    setPendingRemoveIds([`${difficulty}:${row.id}`])
     setRemoveQuestionFrom('list')
     opts.setError('')
   }
@@ -328,10 +354,7 @@ export function useAdminBank(opts: {
   }
 
   function toggleAllFilteredQuestions() {
-    const q = opts.query.trim().toLowerCase()
-    const visible = bankQuestions
-      .filter((row) => questionMatchesQuery(row, q))
-      .map((row) => row.id)
+    const visible = visibleRemovalKeys()
     const allOn = visible.length > 0 && visible.every((id) => selectedQuestionIds.includes(id))
     if (allOn) {
       setSelectedQuestionIds((current) => current.filter((id) => !visible.includes(id)))
@@ -351,11 +374,18 @@ export function useAdminBank(opts: {
   }
 
   function startRemoveAll() {
-    if (!bankQuestions.length) {
+    const keys =
+      listDifficulties.length > 1
+        ? questionGroups.flatMap((group) => group.questions.map((row) => `${group.difficulty}:${row.id}`))
+        : bankQuestions.map((row) => {
+            const difficulty = listDifficulties[0]
+            return difficulty ? `${difficulty}:${row.id}` : row.id
+          })
+    if (!keys.length) {
       return
     }
     setQuestionDraft(null)
-    setPendingRemoveIds(bankQuestions.map((row) => row.id))
+    setPendingRemoveIds(keys)
     setRemoveQuestionFrom('list')
     opts.setError('')
   }
@@ -445,7 +475,7 @@ export function useAdminBank(opts: {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify({ items: removalItems(ids) }),
     })
     const data = (await res.json()) as { error?: string; bankCounts?: BankCount[]; removed?: number }
     if (!res.ok) {

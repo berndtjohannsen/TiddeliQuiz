@@ -10,7 +10,7 @@ import {
   difficulties,
   parseGenerateBody,
   parseOptionalDifficulty,
-  parseQuestionIds,
+  parseQuestionRemovals,
 } from './httpParse'
 import { getLogLines, log, setLogLevel } from './log'
 import {
@@ -294,11 +294,11 @@ export function mountAdminApi(app: Hono) {
     if (!isAdmin(c)) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
-    const ids = parseQuestionIds(await c.req.json<{ ids?: unknown }>())
-    if (!ids.length) {
+    const items = parseQuestionRemovals(await c.req.json<{ ids?: unknown; difficulty?: unknown; items?: unknown }>())
+    if (!items.length) {
       return c.json({ error: 'No questions selected' }, 400)
     }
-    const result = deleteBankQuestions(ids, { kind: 'platform' })
+    const result = deleteBankQuestions(items, { kind: 'platform' })
     log('info', `Admin removed ${result.removed} platform question(s)`)
     return c.json({ ok: true, removed: result.removed, bankCounts: result.bankCounts })
   })
@@ -450,11 +450,11 @@ export function mountAdminApi(app: Hono) {
     if (!account) {
       return c.json({ error: 'Unknown user' }, 404)
     }
-    const ids = parseQuestionIds(await c.req.json<{ ids?: unknown }>())
-    if (!ids.length) {
+    const items = parseQuestionRemovals(await c.req.json<{ ids?: unknown; difficulty?: unknown; items?: unknown }>())
+    if (!items.length) {
       return c.json({ error: 'No questions selected' }, 400)
     }
-    const result = deleteBankQuestions(ids, { kind: 'user', userId: account.id })
+    const result = deleteBankQuestions(items, { kind: 'user', userId: account.id })
     log('info', `Admin removed ${result.removed} question(s) for ${account.username}`)
     return c.json({ ok: true, removed: result.removed, bankCounts: result.bankCounts })
   })

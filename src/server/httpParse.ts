@@ -147,6 +147,37 @@ export function parseGenerateBody(body: {
   }
 }
 
+/** List removals. A difficulty means "this level only"; without one, the whole row goes. */
+export function parseQuestionRemovals(body: {
+  ids?: unknown
+  difficulty?: unknown
+  items?: unknown
+}): { id: string; difficulty?: Difficulty }[] {
+  if (Array.isArray(body.items)) {
+    const seen = new Set<string>()
+    const items: { id: string; difficulty?: Difficulty }[] = []
+    for (const raw of body.items) {
+      if (!raw || typeof raw !== 'object') {
+        continue
+      }
+      const id = String((raw as { id?: unknown }).id ?? '').trim()
+      if (!id) {
+        continue
+      }
+      const difficulty = parseOptionalDifficulty((raw as { difficulty?: unknown }).difficulty)
+      const key = `${difficulty ?? ''}:${id}`
+      if (seen.has(key)) {
+        continue
+      }
+      seen.add(key)
+      items.push(difficulty ? { id, difficulty } : { id })
+    }
+    return items
+  }
+  const difficulty = parseOptionalDifficulty(body.difficulty)
+  return parseQuestionIds(body).map((id) => (difficulty ? { id, difficulty } : { id }))
+}
+
 export function parseQuestionIds(body: { ids?: unknown }): string[] {
   if (!Array.isArray(body.ids)) {
     return []

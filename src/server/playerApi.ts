@@ -5,7 +5,7 @@ import { appendPlayerAttempt, deletePlayerAttempt, listPlayerAttempts, parseAtte
 import { generateQuizRound, isCancelledError } from './ai'
 import { generateAllJobJson, startGenerateAllJob } from './generateAllJob'
 import { playerAccount, playerCookie, playerSessions } from './httpAuth'
-import { difficulties, parseGenerateBody, parseOptionalDifficulty, parseQuestionIds } from './httpParse'
+import { difficulties, parseGenerateBody, parseOptionalDifficulty, parseQuestionRemovals } from './httpParse'
 import { log } from './log'
 import {
   appendUserQuestions,
@@ -153,11 +153,11 @@ export function mountPlayerApi(app: Hono) {
     if (!player) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
-    const ids = parseQuestionIds(await c.req.json<{ ids?: unknown }>())
-    if (!ids.length) {
+    const items = parseQuestionRemovals(await c.req.json<{ ids?: unknown; difficulty?: unknown; items?: unknown }>())
+    if (!items.length) {
       return c.json({ error: 'No questions selected' }, 400)
     }
-    const result = deleteBankQuestions(ids, { kind: 'user', userId: player.id })
+    const result = deleteBankQuestions(items, { kind: 'user', userId: player.id })
     log('info', `Player removed ${result.removed} question(s)`)
     return c.json({ ok: true, removed: result.removed, bankCounts: result.bankCounts })
   })

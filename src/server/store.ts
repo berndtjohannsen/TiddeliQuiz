@@ -6,6 +6,7 @@ import {
   dbDeleteCategory,
   dbDeleteQuestion,
   dbDeleteQuestions,
+  dbRemoveQuestionsOnDifficulty,
   dbDeleteQuestionsForTopic,
   dbDeleteTopic,
   dbGetQuestion,
@@ -780,20 +781,29 @@ function ownsQuestion(row: StoredQuestion, owner: CatalogOwner) {
     : row.ownerType !== 'user'
 }
 
-/** Delete the chosen questions only. A similar question on another level stays. */
+/** Delete the chosen questions. With a difficulty, only that level loses the question. */
 export function deleteBankQuestions(
-  ids: string[],
+  items: { id: string; difficulty?: Difficulty }[],
   owner: CatalogOwner,
 ): { removed: number; bankCounts: BankCount[] } {
-  const ownedIds = new Set<string>()
-  for (const id of ids.filter((value) => value.length > 0)) {
+  const levelItems: { id: string; difficulty: Difficulty }[] = []
+  const fullIds = new Set<string>()
+  for (const item of items) {
+    const id = item.id.trim()
+    if (!id) {
+      continue
+    }
     const row = dbGetQuestion(id)
     if (!row || !ownsQuestion(row, owner)) {
       continue
     }
-    ownedIds.add(row.id)
+    if (item.difficulty) {
+      levelItems.push({ id: row.id, difficulty: item.difficulty })
+    } else {
+      fullIds.add(row.id)
+    }
   }
-  const removed = dbDeleteQuestions([...ownedIds])
+  const removed = dbRemoveQuestionsOnDifficulty(levelItems) + dbDeleteQuestions([...fullIds])
   return {
     removed,
     bankCounts: owner.kind === 'user' ? loadBankCountsForUser(owner.userId) : loadBankCounts(),

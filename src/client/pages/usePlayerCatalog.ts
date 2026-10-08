@@ -354,7 +354,7 @@ export function usePlayerCatalog() {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: pendingRemoveIds }),
+      body: JSON.stringify({ ids: pendingRemoveIds, difficulty: selectedDifficulty }),
     })
     const data = (await res.json()) as { error?: string; bankCounts?: BankCount[]; removed?: number }
     if (!res.ok) {

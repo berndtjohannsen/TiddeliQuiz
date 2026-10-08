@@ -46,7 +46,7 @@ export function AdminQuestions(props: {
   onQuestionList: () => void
   onGenerate: () => void
   onEdit: (row: StoredQuestion) => void
-  onStartRemove: (row: StoredQuestion) => void
+  onStartRemove: (row: StoredQuestion, fromDifficulty?: string) => void
   onToggle: (id: string) => void
   onToggleAllFiltered: () => void
   onRemoveSelected: () => void
@@ -150,6 +150,7 @@ export function AdminQuestions(props: {
               : undefined
           }
           loading={props.listLoading}
+          listDifficulty={mixed ? undefined : levels[0]}
           onRemoveOne={props.onStartRemove}
           onRemoveSelected={props.onRemoveSelected}
           onRemoveAll={props.onRemoveAll}
