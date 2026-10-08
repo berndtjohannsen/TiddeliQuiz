@@ -58,6 +58,15 @@ export function topicApiFields(topic: Topic, prompt = topic.prompt.trim()) {
   }
 }
 
+/** Question text or its public code matches the list search. */
+export function questionMatchesQuery(row: { question: string; publicCode?: string }, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) {
+    return true
+  }
+  return row.question.toLowerCase().includes(q) || (row.publicCode ?? '').toLowerCase().includes(q)
+}
+
 export function isDraft(id: string) {
   return id.startsWith('draft-')
 }

@@ -670,6 +670,7 @@ function storedToQuiz(row: StoredQuestion): QuizQuestion {
     correctIndex: shuffled.findIndex((p) => p.correct),
     explanation: row.explanation,
     difficulty: row.difficulty,
+    publicCode: row.publicCode,
   }
   if (row.sourceUrl?.trim()) {
     q.sourceUrl = row.sourceUrl.trim()

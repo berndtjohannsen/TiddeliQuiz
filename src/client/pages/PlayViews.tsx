@@ -51,6 +51,12 @@ export function PlayQuestion(props: { play: PlayPageModel }) {
         {play.heading.difficulty === 'all' && isDifficulty(q.difficulty) ? (
           <span className="text-xs text-slate-500"> · {difficultyLabel(q.difficulty)}</span>
         ) : null}
+        {q.publicCode ? (
+          <span className="text-xs text-slate-500" title={strings.questionCode}>
+            {' '}
+            {q.publicCode}
+          </span>
+        ) : null}
       </p>
       <h1 className="text-xl font-semibold">{q.question}</h1>
 

@@ -11,6 +11,7 @@ import {
   fillText,
   getGenerateAllUi,
   isDraft,
+  questionMatchesQuery,
   patchGenerateAllUi,
   runGenerateAllJob,
   setGenerateAllApplyCounts,
@@ -71,7 +72,7 @@ export function usePlayerCatalog() {
   )
   const filteredBankQuestions = useMemo(() => {
     const q = questionQuery.trim().toLowerCase()
-    return bankQuestions.filter((row) => !q || row.question.toLowerCase().includes(q))
+    return bankQuestions.filter((row) => questionMatchesQuery(row, q))
   }, [bankQuestions, questionQuery])
   const subjectsHere = useMemo(
     () =>

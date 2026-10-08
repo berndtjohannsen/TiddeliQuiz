@@ -136,8 +136,9 @@ export function parseGenerateBody(body: {
     ? (body.difficulty as Difficulty)
     : 'medium'
   const rawCount = Number(body.count)
-  const stepped = Math.round((Number.isFinite(rawCount) ? rawCount : 10) / 5) * 5
-  const count = Math.min(20, Math.max(5, stepped))
+  const whole = Math.round(Number.isFinite(rawCount) ? rawCount : 10)
+  // Any whole number in range. The old step of 5 is not required.
+  const count = Math.min(100, Math.max(1, whole))
   return {
     topicId: String(body.topicId ?? ''),
     difficulty,

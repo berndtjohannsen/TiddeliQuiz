@@ -96,18 +96,21 @@ export function AdminQuestions(props: {
         {mixed ? null : (
           <>
             <Field label={strings.bankAddCount}>
-              <select
+              <input
+                type="number"
+                min={1}
+                max={100}
+                step={1}
                 className={inputClass}
                 value={props.generateCount}
                 disabled={Boolean(props.generatingDifficulty)}
-                onChange={(e) => props.onGenerateCount(Number(e.target.value))}
-              >
-                {[5, 10, 15, 20].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+                onChange={(e) => {
+                  const n = Number(e.target.value)
+                  if (Number.isInteger(n) && n >= 1 && n <= 100) {
+                    props.onGenerateCount(n)
+                  }
+                }}
+              />
             </Field>
             <button
               type="button"
@@ -172,6 +175,11 @@ export function AdminQuestions(props: {
       }}
     >
       <Breadcrumb chrome="admin" userScope={props.userScope} parts={path} />
+      {props.draft.publicCode ? (
+        <p className="text-xs text-slate-500" title={strings.questionCode}>
+          {props.draft.publicCode}
+        </p>
+      ) : null}
       <Field label={strings.questionDifficulty}>
         <select
           className={inputClass}

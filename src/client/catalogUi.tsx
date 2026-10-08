@@ -18,6 +18,7 @@ export {
   fillText,
   inputClass,
   isDraft,
+  questionMatchesQuery,
   suggestedPrompt,
   topicApiFields,
   topicCountIn,

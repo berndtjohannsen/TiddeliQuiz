@@ -6,6 +6,7 @@ import {
   emptyGenerateAllRows,
   fillText,
   getGenerateAllUi,
+  questionMatchesQuery,
   patchGenerateAllUi,
   runGenerateAllJob,
   setGenerateAllApplyCounts,
@@ -329,7 +330,7 @@ export function useAdminBank(opts: {
   function toggleAllFilteredQuestions() {
     const q = opts.query.trim().toLowerCase()
     const visible = bankQuestions
-      .filter((row) => !q || row.question.toLowerCase().includes(q))
+      .filter((row) => questionMatchesQuery(row, q))
       .map((row) => row.id)
     const allOn = visible.length > 0 && visible.every((id) => selectedQuestionIds.includes(id))
     if (allOn) {
@@ -515,7 +516,7 @@ export function useAdminBank(opts: {
 
   const filteredBankQuestions = useMemo(() => {
     const q = opts.query.trim().toLowerCase()
-    return bankQuestions.filter((row) => !q || row.question.toLowerCase().includes(q))
+    return bankQuestions.filter((row) => questionMatchesQuery(row, q))
   }, [bankQuestions, opts.query])
 
   return {

@@ -10,6 +10,7 @@ import {
   difficultyLabel,
   fillText,
   inputClass,
+  questionMatchesQuery,
 } from './catalogShared'
 import { Field, TopicSourceSummary } from './catalogChrome'
 import { useGenerateAllUi } from './generateAllUi'
@@ -105,18 +106,36 @@ export function BankGeneratePanel(props: {
   return (
     <>
       <Field label={admin ? strings.bankAddCount : strings.myBankAddCount}>
-        <select
-          className={inputClass}
-          value={props.generateCount}
-          disabled={busy}
-          onChange={(e) => props.onGenerateCount(Number(e.target.value))}
-        >
-          {[5, 10, 15, 20].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
+        {admin ? (
+          <input
+            type="number"
+            min={1}
+            max={100}
+            step={1}
+            className={inputClass}
+            value={props.generateCount}
+            disabled={busy}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (Number.isInteger(n) && n >= 1 && n <= 100) {
+                props.onGenerateCount(n)
+              }
+            }}
+          />
+        ) : (
+          <select
+            className={inputClass}
+            value={props.generateCount}
+            disabled={busy}
+            onChange={(e) => props.onGenerateCount(Number(e.target.value))}
+          >
+            {[5, 10, 15, 20].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        )}
       </Field>
       <BankNotice
         generatingDifficulty={genAll.open ? null : props.generatingDifficulty}
@@ -331,7 +350,7 @@ export function BankQuestionList(props: {
   const query = props.query.trim().toLowerCase()
   const sections = props.sections?.map((section) => ({
     ...section,
-    questions: section.questions.filter((row) => !query || row.question.toLowerCase().includes(query)),
+    questions: section.questions.filter((row) => questionMatchesQuery(row, query)),
   }))
   const sectionTotal = sections?.reduce((sum, section) => sum + section.questions.length, 0)
   const shown = sections ? sectionTotal ?? 0 : props.filtered.length
@@ -361,6 +380,7 @@ export function BankQuestionList(props: {
         <div className="min-w-0 flex-1 py-2 pr-2 text-sm">
           {row.question}
           <span className="mt-1 block text-xs text-slate-400">
+            {row.publicCode ? <span className="text-slate-500">{row.publicCode} · </span> : null}
             {props.difficultyName && !sections ? `${props.difficultyName(row)} · ` : ''}
             {correct}: {row.options[row.correctIndex] || '—'}
           </span>

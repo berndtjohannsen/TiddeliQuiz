@@ -44,6 +44,8 @@ export type QuizQuestion = {
   sourceUrl?: string
   /** Stored level. Shown discreetly when the round is Alla. */
   difficulty?: Difficulty
+  /** Short unique code a player can quote. */
+  publicCode?: string
 }
 
 /** Score shown on the summary screen. */
@@ -107,6 +109,8 @@ export type StoredQuestion = {
   correctIndex: number
   explanation: string
   sourceUrl?: string
+  /** Short unique code a player can quote. Set when the row is stored. */
+  publicCode?: string
 }
 
 /** Player account shown in Admin Users. Password is never included. */

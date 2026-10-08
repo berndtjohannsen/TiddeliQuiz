@@ -128,6 +128,7 @@ type QuestionRow = {
   question: string
   explanation: string
   source_url: string | null
+  public_code: string | null
 }
 
 function mapCategory(row: CategoryRow): Category {
@@ -174,7 +175,23 @@ function mapQuestion(row: QuestionRow, options: { text: string; is_correct: numb
   if (row.source_url?.trim()) {
     q.sourceUrl = row.source_url.trim()
   }
+  if (row.public_code?.trim()) {
+    q.publicCode = row.public_code.trim()
+  }
   return q
+}
+
+/** Letters and digits a player can read aloud. Skips 0/O and 1/I. */
+const PUBLIC_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+
+function randomPublicCode() {
+  const bytes = new Uint8Array(6)
+  crypto.getRandomValues(bytes)
+  return [...bytes].map((b) => PUBLIC_CODE_ALPHABET[b % PUBLIC_CODE_ALPHABET.length]).join('')
+}
+
+function isPublicCodeClash(err: unknown) {
+  return err instanceof Error && err.message.includes('public_code')
 }
 
 function insertUrlAsset(
@@ -290,7 +307,7 @@ const TOPIC_SELECT = `
 `
 
 const QUESTION_SELECT = `
-  SELECT q.id, q.topic_id, q.difficulty, q.owner_type, q.owner_id, q.question, q.explanation,
+  SELECT q.id, q.topic_id, q.difficulty, q.owner_type, q.owner_id, q.question, q.explanation, q.public_code,
     (SELECT a.url FROM question_sources qs JOIN assets a ON a.id = qs.asset_id
       WHERE qs.question_id = q.id AND a.kind = 'url' ORDER BY qs.sort_order LIMIT 1) AS source_url
   FROM questions q
@@ -318,15 +335,57 @@ export function openCatalogDb() {
     return db
   }
   fs.mkdirSync(dataDir, { recursive: true })
-  db = new Database(dbFile)
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
-  db.exec(SCHEMA_V1)
-  const migrated = db.prepare(`SELECT version FROM schema_migrations WHERE version = 1`).get()
-  if (!migrated) {
-    db.prepare(`INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)`).run(nowIso())
+  const database = new Database(dbFile)
+  try {
+    database.pragma('journal_mode = WAL')
+    database.pragma('foreign_keys = ON')
+    database.exec(SCHEMA_V1)
+    const migrated = database.prepare(`SELECT version FROM schema_migrations WHERE version = 1`).get()
+    if (!migrated) {
+      database.prepare(`INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)`).run(nowIso())
+    }
+    ensurePublicCodes(database)
+  } catch (err) {
+    database.close()
+    throw err
   }
+  db = database
   return db
+}
+
+/** One short code per question, including rows stored before the column existed. */
+function ensurePublicCodes(database: Database.Database) {
+  const migrated = database.prepare(`SELECT version FROM schema_migrations WHERE version = 2`).get()
+  if (migrated) {
+    return
+  }
+  const cols = database.prepare(`PRAGMA table_info(questions)`).all() as { name: string }[]
+  if (!cols.some((col) => col.name === 'public_code')) {
+    database.exec(`ALTER TABLE questions ADD COLUMN public_code TEXT`)
+  }
+  const missing = database
+    .prepare(`SELECT id FROM questions WHERE public_code IS NULL OR public_code = ''`)
+    .all() as { id: string }[]
+  const used = new Set(
+    (
+      database
+        .prepare(`SELECT public_code FROM questions WHERE public_code IS NOT NULL AND public_code != ''`)
+        .all() as { public_code: string }[]
+    ).map((row) => row.public_code),
+  )
+  const update = database.prepare(`UPDATE questions SET public_code = ? WHERE id = ?`)
+  database.transaction(() => {
+    for (const row of missing) {
+      let code = randomPublicCode()
+      while (used.has(code)) {
+        code = randomPublicCode()
+      }
+      used.add(code)
+      update.run(code, row.id)
+    }
+  })()
+  database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_questions_public_code ON questions (public_code)`)
+  database.prepare(`INSERT INTO schema_migrations (version, applied_at) VALUES (2, ?)`).run(nowIso())
 }
 
 export function dbLoadCatalog(): CatalogFile {
@@ -509,28 +568,38 @@ export function dbInsertQuestion(row: StoredQuestion, hiddenDifficulties?: Diffi
   if (hiddenDifficulties?.length) {
     meta.hiddenDifficulties = hiddenDifficulties
   }
-  const tx = database.transaction(() => {
-    database
-      .prepare(
-        `INSERT INTO questions (id, topic_id, difficulty, owner_type, owner_id, question, explanation, meta_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        row.id,
-        row.topicId,
-        row.difficulty,
-        ownerType,
-        ownerId,
-        row.question,
-        row.explanation,
-        JSON.stringify(meta),
-        ts,
-        ts,
-      )
-    replaceOptions(database, row.id, row.options, row.correctIndex)
-    replaceQuestionUrl(database, row.id, row.sourceUrl, ownerType, ownerId)
-  })
-  tx()
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const publicCode = randomPublicCode()
+    try {
+      database.transaction(() => {
+        database
+          .prepare(
+            `INSERT INTO questions (id, topic_id, difficulty, owner_type, owner_id, question, explanation, meta_json, public_code, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            row.id,
+            row.topicId,
+            row.difficulty,
+            ownerType,
+            ownerId,
+            row.question,
+            row.explanation,
+            JSON.stringify(meta),
+            publicCode,
+            ts,
+            ts,
+          )
+        replaceOptions(database, row.id, row.options, row.correctIndex)
+        replaceQuestionUrl(database, row.id, row.sourceUrl, ownerType, ownerId)
+      })()
+      return
+    } catch (err) {
+      if (attempt === 7 || !isPublicCodeClash(err)) {
+        throw err
+      }
+    }
+  }
 }
 
 /** This question plays on one level only. Other levels stay hidden. */

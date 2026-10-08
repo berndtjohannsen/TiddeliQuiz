@@ -282,6 +282,7 @@ export const strings = {
   downloadStudent: 'För elever',
   downloadTeacher: 'För lärare',
   questionOf: 'Fråga',
+  questionCode: 'Frågekod',
   sourceLink: 'Läs mer',
   loadingCatalog: 'Laddar…',
   noCategories: 'Inga kategorier att spela ännu.',
