@@ -46,8 +46,8 @@ const defaultAi: AiFile = {
   baseURL: 'https://api.deepseek.com',
   model: 'deepseek-v4-flash',
   timeoutMs: 60_000,
-  temperature: 0.7,
-  thinkingEnabled: false,
+  temperature: 0.3,
+  thinkingEnabled: true,
   fetchSourceEnabled: false,
   logLevel: 'info',
 }
@@ -379,7 +379,7 @@ function loadAiFile(): AiFile {
     model: raw.model ?? defaultAi.model,
     timeoutMs: Number(raw.timeoutMs ?? defaultAi.timeoutMs),
     temperature: Number(raw.temperature ?? defaultAi.temperature),
-    thinkingEnabled: raw.thinkingEnabled === true,
+    thinkingEnabled: raw.thinkingEnabled ?? defaultAi.thinkingEnabled,
     fetchSourceEnabled: raw.fetchSourceEnabled === true,
     logLevel: parseLogLevel(raw.logLevel),
   }
