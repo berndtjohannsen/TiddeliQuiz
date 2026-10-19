@@ -1,4 +1,4 @@
-import type { BankCount, Category, Difficulty, PlayDifficulty, QuizQuestion, QuizScore } from '../shared/types'
+import type { BankCount, Category, Difficulty, PlayDifficulty, QuizQuestion, QuizScore, StoredQuestion } from '../shared/types'
 import { strings } from './strings'
 
 /** Browser store so /play does not call the AI again on reload. */
@@ -360,6 +360,77 @@ export function downloadQuizCopy(opts: {
   const a = document.createElement('a')
   a.href = url
   a.download = `tiddeli-${subject}-${kind}.html`
+  a.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** Printable copy of every question stored for one subject, with the correct answer and explanation. */
+export function downloadSubjectBank(opts: {
+  categoryName: string
+  topicName: string
+  groups: { label: string; questions: StoredQuestion[] }[]
+}) {
+  const subject = [opts.categoryName, opts.topicName].filter(Boolean).join(' / ') || strings.appName
+  const when = new Date().toLocaleString('sv-SE')
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const body = opts.groups
+    .map((group) => {
+      const questions = group.questions
+        .map((q, i) => {
+          const options = q.options
+            .map((opt, n) => {
+              const mark = n === q.correctIndex ? ` <strong>(${escapeHtml(strings.questionCorrect)})</strong>` : ''
+              return `            <li>${letters[n] ?? n + 1}. ${escapeHtml(opt)}${mark}</li>`
+            })
+            .join('\n')
+          const code = q.publicCode ? `\n          <p class="meta">${escapeHtml(q.publicCode)}</p>` : ''
+          const explanation = q.explanation.trim()
+            ? `\n          <p>${escapeHtml(q.explanation)}</p>`
+            : ''
+          const source = q.sourceUrl
+            ? `\n          <p><a href="${escapeHtml(q.sourceUrl)}">${escapeHtml(q.sourceUrl)}</a></p>`
+            : ''
+          return `        <section>
+          <h3>${i + 1}. ${escapeHtml(q.question)}</h3>${code}
+          <ul class="opts">
+${options}
+          </ul>${explanation}${source}
+        </section>`
+        })
+        .join('\n')
+      return `    <h2>${escapeHtml(group.label)}</h2>
+${questions}`
+    })
+    .join('\n')
+  const html = `<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(subject)}</title>
+    <style>
+      body { font-family: Georgia, serif; max-width: 44rem; margin: 1.5rem auto; padding: 0 1rem; color: #111; }
+      h1 { font-size: 1.4rem; margin-bottom: 0.2rem; }
+      h2 { font-size: 1.2rem; margin: 1.6rem 0 0.4rem; }
+      .meta { color: #333; font-size: 0.95rem; }
+      section { break-inside: avoid; margin: 1.2rem 0; padding-top: 0.6rem; border-top: 1px solid #ccc; }
+      h3 { font-size: 1.05rem; margin: 0 0 0.5rem; }
+      .opts { margin: 0.4rem 0 0.6rem 0; padding-left: 0; list-style: none; }
+      .opts li { margin: 0.25rem 0; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head>
+  <body>
+    <h1>${escapeHtml(subject)}</h1>
+    <p class="meta">${escapeHtml(when)}</p>
+${body}
+  </body>
+</html>
+`
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `tiddeli-${copyFileSlug(opts.topicName || opts.categoryName || 'quiz')}-fragor.html`
   a.click()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

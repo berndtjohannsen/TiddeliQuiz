@@ -223,6 +223,9 @@ export const strings = {
   deleteSelected: 'Delete selected',
   deleteAll: 'Delete all',
   clearQuestions: 'Clear all questions',
+  downloadSubject: 'Download questions',
+  downloadSubjectEmpty: 'This subject has no questions to download.',
+  downloadSubjectFailed: 'Could not download the questions.',
   clearQuestionsWarn:
     'Remove all {count} questions in "{name}"? This cannot be undone.',
   clearDifficultyWarn:

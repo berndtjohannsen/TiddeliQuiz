@@ -14,6 +14,7 @@ import {
   type AdminCatalogLevel,
 } from '../../catalogUi'
 import { strings } from '../../strings'
+import { downloadSubjectBank } from '../../playerSession'
 import { adminCatalogBase } from './adminCatalogApi'
 
 /** Generate into the bank and edit stored questions. */
@@ -34,6 +35,7 @@ export function useAdminBank(opts: {
     bankDifficulties.map((d) => d.id),
   )
   const [generatingDifficulty, setGeneratingDifficulty] = useState<Difficulty | null>(null)
+  const [downloadingSubject, setDownloadingSubject] = useState(false)
   const generatingAllRef = useRef(false)
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium')
   /** Difficulties shown together on the question list. One entry is a normal Edit. */
@@ -544,6 +546,42 @@ export function useAdminBank(opts: {
     opts.setMessage(fillText(strings.removedQuestions, { count: data.removed ?? 0 }))
   }
 
+  /** Save every question in this subject, grouped by difficulty, with the correct answer and explanation. */
+  async function downloadSubject(categoryName: string, topicName: string) {
+    if (!opts.selectedTopicId || downloadingSubject) {
+      return
+    }
+    opts.setError('')
+    setDownloadingSubject(true)
+    try {
+      const groups: { label: string; questions: StoredQuestion[] }[] = []
+      for (const level of bankDifficulties) {
+        const res = await fetch(
+          `${adminCatalogBase(opts.catalogOwner)}/bank/questions?topicId=${encodeURIComponent(opts.selectedTopicId)}&difficulty=${encodeURIComponent(level.id)}`,
+          { credentials: 'include', cache: 'no-store' },
+        )
+        if (!res.ok) {
+          opts.setError(strings.downloadSubjectFailed)
+          return
+        }
+        const data = (await res.json()) as { questions?: StoredQuestion[] }
+        const questions = data.questions ?? []
+        if (questions.length) {
+          groups.push({ label: level.label, questions })
+        }
+      }
+      if (!groups.length) {
+        opts.setError(strings.downloadSubjectEmpty)
+        return
+      }
+      downloadSubjectBank({ categoryName, topicName, groups })
+    } catch {
+      opts.setError(strings.downloadSubjectFailed)
+    } finally {
+      setDownloadingSubject(false)
+    }
+  }
+
   const filteredBankQuestions = useMemo(() => {
     const q = opts.query.trim().toLowerCase()
     return bankQuestions.filter((row) => questionMatchesQuery(row, q))
@@ -555,6 +593,7 @@ export function useAdminBank(opts: {
     generateDifficulties,
     toggleGenerateDifficulty,
     generatingDifficulty,
+    downloadingSubject,
     selectedDifficulty,
     listDifficulties,
     questionGroups,
@@ -572,6 +611,7 @@ export function useAdminBank(opts: {
     openGenerateAll,
     generateAllDifficulties,
     openQuestionList,
+    downloadSubject,
     openSelectedQuestions,
     openEditQuestion,
     startRemoveQuestion,

@@ -37,6 +37,7 @@ export {
   type BreadcrumbPart,
 } from './catalogChrome'
 export {
+  AddCountInput,
   BankGeneratePanel,
   BankNotice,
   BankQuestionList,

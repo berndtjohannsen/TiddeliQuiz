@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { BankCount, Difficulty, StoredQuestion, Topic } from '../shared/types'
 import {
   bankCountForTopic,
@@ -82,6 +82,47 @@ export function BankNotice(props: {
   return <p className={`min-h-5 text-sm ${color}`}>{text}</p>
 }
 
+/** Typed "questions to add". Digits can be cleared and retyped. Kept between 1 and 100. */
+export function AddCountInput(props: { value: number; disabled?: boolean; onChange: (n: number) => void }) {
+  const [text, setText] = useState(String(props.value))
+  useEffect(() => {
+    setText(String(props.value))
+  }, [props.value])
+
+  function apply(raw: string) {
+    if (!/^\d+$/.test(raw)) {
+      setText(String(props.value))
+      return
+    }
+    const n = Math.min(100, Math.max(1, Number(raw)))
+    props.onChange(n)
+    setText(String(n))
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      className={inputClass}
+      value={text}
+      disabled={props.disabled}
+      onChange={(e) => {
+        const raw = e.target.value.trim()
+        if (raw !== '' && !/^\d+$/.test(raw)) {
+          return
+        }
+        setText(raw)
+        const n = Number(raw)
+        if (Number.isInteger(n) && n >= 1 && n <= 100) {
+          props.onChange(n)
+        }
+      }}
+      onBlur={() => apply(text.trim())}
+    />
+  )
+}
+
 /** Per-difficulty list: Edit / Generate / Delete. Tick rows, then Generate selected on the header. */
 export function BankGeneratePanel(props: {
   chrome: 'admin' | 'player'
@@ -107,21 +148,7 @@ export function BankGeneratePanel(props: {
     <>
       <Field label={admin ? strings.bankAddCount : strings.myBankAddCount}>
         {admin ? (
-          <input
-            type="number"
-            min={1}
-            max={100}
-            step={1}
-            className={inputClass}
-            value={props.generateCount}
-            disabled={busy}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              if (Number.isInteger(n) && n >= 1 && n <= 100) {
-                props.onGenerateCount(n)
-              }
-            }}
-          />
+          <AddCountInput value={props.generateCount} disabled={busy} onChange={props.onGenerateCount} />
         ) : (
           <select
             className={inputClass}
@@ -229,6 +256,8 @@ export function TopicBankScreen(props: {
   onEditPrompt: () => void
   onGenerateSelected: () => void
   onEditSelected?: () => void
+  onDownload?: () => void
+  downloadBusy?: boolean
   children?: ReactNode
 }) {
   const admin = props.chrome === 'admin'
@@ -247,6 +276,16 @@ export function TopicBankScreen(props: {
           </p>
         </div>
         <div className="flex shrink-0 gap-1">
+          {admin && props.onDownload ? (
+            <button
+              type="button"
+              className={`${btnLink} disabled:opacity-50`}
+              disabled={generateBusy || props.downloadBusy || !props.canClear}
+              onClick={props.onDownload}
+            >
+              {strings.downloadSubject}
+            </button>
+          ) : null}
           {admin ? (
             <button type="button" className={btnLink} onClick={props.onEditPrompt}>
               {strings.editSubject}

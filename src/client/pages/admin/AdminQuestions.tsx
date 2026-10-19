@@ -1,5 +1,6 @@
 import type { Category, Difficulty, StoredQuestion, Topic } from '../../../shared/types'
 import {
+  AddCountInput,
   BankNotice,
   BankQuestionList,
   Breadcrumb,
@@ -96,20 +97,10 @@ export function AdminQuestions(props: {
         {mixed ? null : (
           <>
             <Field label={strings.bankAddCount}>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                step={1}
-                className={inputClass}
+              <AddCountInput
                 value={props.generateCount}
                 disabled={Boolean(props.generatingDifficulty)}
-                onChange={(e) => {
-                  const n = Number(e.target.value)
-                  if (Number.isInteger(n) && n >= 1 && n <= 100) {
-                    props.onGenerateCount(n)
-                  }
-                }}
+                onChange={props.onGenerateCount}
               />
             </Field>
             <button

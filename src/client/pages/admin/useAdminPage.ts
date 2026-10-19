@@ -417,6 +417,8 @@ export function useAdminPage() {
     generateDifficulties: bank.generateDifficulties,
     toggleGenerateDifficulty: bank.toggleGenerateDifficulty,
     generatingDifficulty: bank.generatingDifficulty,
+    downloadingSubject: bank.downloadingSubject,
+    downloadSubject: bank.downloadSubject,
     selectedDifficulty: bank.selectedDifficulty,
     listDifficulties: bank.listDifficulties,
     questionGroups: bank.questionGroups,

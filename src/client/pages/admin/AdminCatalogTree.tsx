@@ -98,6 +98,8 @@ export function AdminCatalogTree(props: {
   onRemoveTopic: (id: string) => void
   onGenerateAll: () => void
   onGenerateBank: (d: Difficulty) => void
+  onDownloadSubject: (categoryName: string, topicName: string) => void
+  downloadBusy: boolean
   onOpenQuestionList: (d: Difficulty) => void
   onEditSelected: () => void
   onAskClearQuestions: () => void
@@ -407,6 +409,8 @@ export function AdminCatalogTree(props: {
           selectedDifficulties={props.generateDifficulties}
           onToggleDifficulty={props.onToggleGenerateDifficulty}
           onGenerate={(d) => void props.onGenerateBank(d)}
+          onDownload={() => void props.onDownloadSubject(cat.name, topic.name)}
+          downloadBusy={props.downloadBusy}
           onOpenList={(d) => void props.onOpenQuestionList(d)}
           onEditSelected={() => void props.onEditSelected()}
           onClearDifficulty={props.onAskClearDifficulty}

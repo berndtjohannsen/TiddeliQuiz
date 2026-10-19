@@ -36,6 +36,8 @@ export default function AdminPage() {
     generateDifficulties,
     toggleGenerateDifficulty,
     generatingDifficulty,
+    downloadingSubject,
+    downloadSubject,
     selectedDifficulty,
     listDifficulties,
     questionGroups,
@@ -231,6 +233,8 @@ export default function AdminPage() {
                 onRemoveTopic={(id) => void removeTopic(id)}
                 onGenerateAll={openGenerateAll}
                 onGenerateBank={(d) => void generateBank(d)}
+                onDownloadSubject={(categoryName, topicName) => void downloadSubject(categoryName, topicName)}
+                downloadBusy={downloadingSubject}
                 onOpenQuestionList={(d) => void openQuestionList(d)}
                 onEditSelected={() => void openSelectedQuestions()}
                 onAskClearQuestions={askClearQuestions}
