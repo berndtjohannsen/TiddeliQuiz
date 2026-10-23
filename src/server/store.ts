@@ -503,7 +503,7 @@ export function loadGuestCatalog(): {
 } {
   const catalog = catalogForPlayer(null)
   const bankCounts = loadBankCounts()
-  const playable = new Set(bankCounts.filter((row) => row.count >= 5).map((row) => row.topicId))
+  const playable = new Set(bankCounts.filter((row) => row.count >= 1).map((row) => row.topicId))
   const topics = catalog.topics.filter((t) => playable.has(t.id))
   const keepCat = new Set(topics.map((t) => t.categoryId))
   const categories = catalog.categories.filter((c) => keepCat.has(c.id))
@@ -522,7 +522,7 @@ export function loadPlayerCatalog(userId: string): {
   const privateIds = new Set(privateCats.map((c) => c.id))
   const privateTopics = mine.topics.filter((t) => privateIds.has(t.categoryId))
   const userCounts = loadBankCountsForUser(userId)
-  const playable = new Set(userCounts.filter((row) => row.count >= 5).map((row) => row.topicId))
+  const playable = new Set(userCounts.filter((row) => row.count >= 1).map((row) => row.topicId))
   const topics = privateTopics.filter((t) => playable.has(t.id))
   const keepCat = new Set(topics.map((t) => t.categoryId))
   const categories = privateCats.filter((c) => keepCat.has(c.id))

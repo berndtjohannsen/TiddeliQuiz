@@ -96,7 +96,7 @@ app.post('/api/quiz/start', async (c) => {
   }
   const rawCount = Number(body.count)
   const whole = Number.isFinite(rawCount) ? Math.round(rawCount) : 10
-  const count = Math.max(5, whole)
+  const count = Math.max(1, whole)
   const difficulty: PlayDifficulty =
     body.difficulty === 'all' || difficulties.includes(body.difficulty as (typeof difficulties)[number])
       ? (body.difficulty as PlayDifficulty)

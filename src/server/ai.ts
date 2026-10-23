@@ -306,6 +306,160 @@ async function generateOnce(
   return object.questions.map((item) => shuffleQuestion(toQuizQuestion(item, mode, fallbackUrl)))
 }
 
+const WIKI_MIN_EXTRACT = 80
+
+/** Swedish (or other) Wikipedia article named by a /wiki/ URL. */
+function wikiPage(raw: string): { host: string; title: string } | null {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return null
+  }
+  if (!/(^|\.)wikipedia\.org$/i.test(url.hostname)) {
+    return null
+  }
+  const match = url.pathname.match(/^\/wiki\/(.+)$/)
+  if (!match) {
+    return null
+  }
+  try {
+    const title = decodeURIComponent(match[1]).replace(/_/g, ' ').trim()
+    return title ? { host: url.hostname, title } : null
+  } catch {
+    return null
+  }
+}
+
+function wikiArticleUrl(host: string, title: string) {
+  return `https://${host}/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
+}
+
+function wikiKey(title: string) {
+  return title.replace(/_/g, ' ').trim().toLowerCase()
+}
+
+type WikiQuery = {
+  normalized?: { from: string; to: string }[]
+  redirects?: { from: string; to: string }[]
+  pages?: Record<string, { title?: string; missing?: string; extract?: string; pageprops?: { disambiguation?: string } }>
+}
+
+/** One MediaWiki lookup. Missing, empty, and disambiguation pages are not usable. */
+async function lookupWiki(host: string, titles: string[], signal: AbortSignal) {
+  const usable = new Map<string, string | null>()
+  for (let i = 0; i < titles.length; i += 40) {
+    const chunk = titles.slice(i, i + 40)
+    const params = new URLSearchParams({
+      action: 'query',
+      format: 'json',
+      redirects: '1',
+      prop: 'extracts|pageprops',
+      exintro: '1',
+      explaintext: '1',
+      exchars: '400',
+      titles: chunk.join('|'),
+    })
+    const res = await fetch(`https://${host}/w/api.php?${params}`, {
+      signal,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'TiddeliQuiz/1.0 (quiz source check)',
+      },
+    })
+    if (!res.ok) {
+      throw new Error(`Wikipedia lookup failed (${res.status})`)
+    }
+    const data = (await res.json()) as { query?: WikiQuery }
+    const query = data.query ?? {}
+    const alias = new Map<string, string>()
+    for (const row of query.normalized ?? []) {
+      alias.set(wikiKey(row.from), wikiKey(row.to))
+    }
+    for (const row of query.redirects ?? []) {
+      alias.set(wikiKey(row.from), wikiKey(row.to))
+    }
+    const pages = new Map<string, NonNullable<WikiQuery['pages']>[string]>()
+    for (const page of Object.values(query.pages ?? {})) {
+      if (page.title) {
+        pages.set(wikiKey(page.title), page)
+      }
+    }
+    for (const title of chunk) {
+      let key = wikiKey(title)
+      for (let hop = 0; hop < 4 && alias.has(key); hop++) {
+        key = alias.get(key) ?? key
+      }
+      const page = pages.get(key)
+      const extract = page?.extract?.trim() ?? ''
+      if (!page || page.missing != null || page.pageprops?.disambiguation != null || extract.length < WIKI_MIN_EXTRACT) {
+        usable.set(wikiKey(title), null)
+        continue
+      }
+      usable.set(wikiKey(title), wikiArticleUrl(host, page.title ?? title))
+    }
+  }
+  return usable
+}
+
+/** Keep a Wikipedia link only when the article has something to read. Other links stay. */
+export async function dropEmptyWikiSources<T extends { sourceUrl?: string }>(
+  items: T[],
+  abortSignal?: AbortSignal,
+): Promise<T[]> {
+  const byHost = new Map<string, string[]>()
+  for (const item of items) {
+    const page = item.sourceUrl ? wikiPage(item.sourceUrl) : null
+    if (!page) {
+      continue
+    }
+    const list = byHost.get(page.host) ?? []
+    if (!list.includes(page.title)) {
+      list.push(page.title)
+    }
+    byHost.set(page.host, list)
+  }
+  if (!byHost.size) {
+    return items
+  }
+  const timeout = AbortSignal.timeout(8000)
+  const signal = abortSignal ? AbortSignal.any([timeout, abortSignal]) : timeout
+  const verdict = new Map<string, string | null>()
+  try {
+    for (const [host, titles] of byHost) {
+      const found = await lookupWiki(host, titles, signal)
+      for (const title of titles) {
+        verdict.set(`${host}\t${wikiKey(title)}`, found.get(wikiKey(title)) ?? null)
+      }
+    }
+  } catch (err) {
+    if (isCancelledError(err)) {
+      throw err
+    }
+    log('warn', `Wikipedia check skipped: ${errText(err)}`)
+    return items
+  }
+  let dropped = 0
+  const next = items.map((item) => {
+    const page = item.sourceUrl ? wikiPage(item.sourceUrl) : null
+    if (!page) {
+      return item
+    }
+    const url = verdict.get(`${page.host}\t${wikiKey(page.title)}`)
+    if (!url) {
+      dropped += 1
+      const copy = { ...item }
+      delete copy.sourceUrl
+      return copy
+    }
+    return url === item.sourceUrl ? item : { ...item, sourceUrl: url }
+  })
+  if (dropped) {
+    log('info', `Left out ${dropped} Wikipedia link(s) with no article`)
+  }
+  return next
+}
+
 /** Controllers for live DeepSeek calls. Aborted when the Node process stops. */
 const inflight = new Set<AbortController>()
 
@@ -368,7 +522,7 @@ export async function generateQuizRound(input: {
   try {
     const questions = await run()
     log('info', `Generated ${questions.length} questions for ${input.topic.name} using ${ai.model}`)
-    return questions
+    return dropEmptyWikiSources(questions, callSignal())
   } catch (err) {
     if (isCancelledError(err)) {
       log('info', 'Quiz generation cancelled (client disconnected or server stopping)')
@@ -378,7 +532,7 @@ export async function generateQuizRound(input: {
     try {
       const questions = await run()
       log('info', `Generated ${questions.length} questions for ${input.topic.name} on retry`)
-      return questions
+      return dropEmptyWikiSources(questions, callSignal())
     } catch (err2) {
       if (isCancelledError(err2)) {
         log('info', 'Quiz generation cancelled on retry')

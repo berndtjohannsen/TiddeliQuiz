@@ -11,10 +11,10 @@ const SEEN_MAX = 40
 
 export const DIFFICULTY_ORDER: Difficulty[] = ['hard', 'medium', 'easy', 'children']
 
-/** How many questions "Alla" plays: every question in the bank. */
+/** How many questions "Alla" plays: every question in the bank, including a bank smaller than 5. */
 export function roundAllCount(available: number) {
   const exact = Math.floor(available)
-  return exact >= 5 ? exact : 0
+  return exact >= 1 ? exact : 0
 }
 
 /** "Alla" first, then steps of 5 that are smaller than the bank. */
@@ -214,9 +214,9 @@ export function bankAvailable(counts: BankCount[], topicId: string, difficulty: 
   return counts.find((row) => row.topicId === topicId && row.difficulty === difficulty)?.count ?? 0
 }
 
-/** Alla first, then each level that has enough questions to play. */
+/** Alla first, then each level that has at least one question. */
 export function playDifficultyChoices(counts: BankCount[], topicId: string): PlayDifficulty[] {
-  const diffs: PlayDifficulty[] = DIFFICULTY_ORDER.filter((d) => bankAvailable(counts, topicId, d) >= 5)
+  const diffs: PlayDifficulty[] = DIFFICULTY_ORDER.filter((d) => bankAvailable(counts, topicId, d) >= 1)
   if (!diffs.length) {
     return []
   }
