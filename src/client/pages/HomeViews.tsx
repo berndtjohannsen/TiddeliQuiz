@@ -1,5 +1,5 @@
 import { useEffect, useRef, type FormEvent, type ReactNode } from 'react'
-import type { Category, PlayDifficulty, Topic } from '../../shared/types'
+import type { Category, Difficulty, Topic } from '../../shared/types'
 import { APP_VERSION } from '../../version'
 import { compareSwedishName, difficultyLabel } from '../catalogUi'
 import { strings } from '../strings'
@@ -77,7 +77,8 @@ export function PlayCatalogBlock(props: {
     ? props.topics.filter((t) => t.categoryId === selected).slice().sort(compareSwedishName)
     : []
   const showLoading = props.status === 'loading'
-  const showError = props.status === 'error'
+  const showBusy = props.status === 'busy'
+  const showError = props.status === 'error' || showBusy
   const noCats = !showLoading && !showError && props.categories.length === 0
   const waitingForCategory = props.status === 'ready' && props.categories.length > 0 && !hasCategory
   const noTopics = props.status === 'ready' && hasCategory && topicsHere.length === 0
@@ -87,7 +88,9 @@ export function PlayCatalogBlock(props: {
   }, [props.topicId, props.categoryId])
   const placeholder = showLoading
     ? strings.loadingCatalog
-    : showError
+    : showBusy
+      ? strings.serverBusy
+      : showError
       ? strings.catalogLoadFailed
       : noCats
         ? props.emptyCategories
@@ -122,7 +125,8 @@ export function PlayCatalogBlock(props: {
           className="max-h-[6.75rem] overflow-y-auto rounded bg-slate-800"
         >
           {showLoading ? <p className="px-3 py-2 text-slate-400">{strings.loadingCatalog}</p> : null}
-          {showError ? <p className="px-3 py-2 text-slate-400">{strings.catalogLoadFailed}</p> : null}
+          {showBusy ? <p className="px-3 py-2 text-slate-400">{strings.serverBusy}</p> : null}
+          {props.status === 'error' ? <p className="px-3 py-2 text-slate-400">{strings.catalogLoadFailed}</p> : null}
           {noCats ? <p className="px-3 py-2 text-slate-400">{props.emptyTopics}</p> : null}
           {waitingForCategory ? (
             <p className="px-3 py-2 text-slate-400">{strings.pickCategory}</p>
@@ -268,15 +272,16 @@ export function StartForm(props: {
   busy: boolean
   count: number
   countChoices: number[]
-  difficulty: PlayDifficulty
-  guestDifficulties: PlayDifficulty[]
+  levels: Difficulty[]
+  levelChoices: Difficulty[]
   startError: string
   bankExhausted: boolean
   canStart: boolean
   onPickCategory: (id: string) => void
   onPickTopic: (id: string) => void
   onCount: (n: number) => void
-  onDifficulty: (d: PlayDifficulty) => void
+  onToggleLevel: (d: Difficulty) => void
+  onToggleAll: () => void
   onMine: () => void
   onReplayBank: () => void
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
@@ -332,22 +337,32 @@ export function StartForm(props: {
         </p>
       ) : null}
 
-      <label className="flex flex-col gap-1 text-sm">
-        {strings.difficulty}
-        <select
-          name="difficulty"
-          value={props.difficulty}
-          disabled={props.busy || !props.guestDifficulties.length}
-          className="rounded bg-slate-800 p-2"
-          onChange={(e) => props.onDifficulty(e.target.value as PlayDifficulty)}
-        >
-          {props.guestDifficulties.map((d) => (
-            <option key={d} value={d}>
+      {/* Levels belong to a subject. Hide them until a category is chosen. */}
+      {props.categoryId ? (
+        <fieldset className="flex flex-col gap-2 text-sm" disabled={props.busy || !props.levelChoices.length}>
+          <legend>{strings.difficulty}</legend>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={props.levelChoices.length > 0 && props.levelChoices.every((d) => props.levels.includes(d))}
+              onChange={props.onToggleAll}
+            />
+            {strings.difficultyAll}
+          </label>
+          {props.levelChoices.map((d) => (
+            <label key={d} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="level"
+                value={d}
+                checked={props.levels.includes(d)}
+                onChange={() => props.onToggleLevel(d)}
+              />
               {difficultyLabel(d)}
-            </option>
+            </label>
           ))}
-        </select>
-      </label>
+        </fieldset>
+      ) : null}
 
       <label className="flex flex-col gap-1 text-sm">
         {strings.questions}

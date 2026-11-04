@@ -679,10 +679,13 @@ function storedToQuiz(row: StoredQuestion): QuizQuestion {
   return q
 }
 
+/** One level, every level, or a list of levels. A shared question is kept once. */
+export type RoundPool = PlayDifficulty | Difficulty[]
+
 /** Guest round: pick unseen questions only. Short round if fewer unseen than requested. */
 export function drawPlatformRound(
   topicId: string,
-  difficulty: PlayDifficulty,
+  difficulty: RoundPool,
   count: number,
   exclude: string[],
 ) {
@@ -693,16 +696,42 @@ export function drawPlatformRound(
 export function drawUserRound(
   userId: string,
   topicId: string,
-  difficulty: PlayDifficulty,
+  difficulty: RoundPool,
   count: number,
   exclude: string[],
 ) {
   return drawOwnedRound(topicId, difficulty, count, exclude, 'user', userId)
 }
 
+/** Questions that play on at least one requested level. */
+function loadRoundPool(
+  topicId: string,
+  difficulty: RoundPool,
+  ownerType: 'platform' | 'user',
+  ownerId?: string,
+) {
+  if (!Array.isArray(difficulty)) {
+    return difficulty === 'all'
+      ? dbLoadQuestions({ topicId, ownerType, ownerId })
+      : loadBankQuestions(topicId, difficulty, ownerType, ownerId)
+  }
+  const seen = new Set<string>()
+  const pool: StoredQuestion[] = []
+  for (const level of difficulty) {
+    for (const row of loadBankQuestions(topicId, level, ownerType, ownerId)) {
+      if (seen.has(row.id)) {
+        continue
+      }
+      seen.add(row.id)
+      pool.push(row)
+    }
+  }
+  return pool
+}
+
 function drawOwnedRound(
   topicId: string,
-  difficulty: PlayDifficulty,
+  difficulty: RoundPool,
   count: number,
   exclude: string[],
   ownerType: 'platform' | 'user',
@@ -710,10 +739,7 @@ function drawOwnedRound(
 ):
   | { questions: QuizQuestion[]; unseen: number }
   | { available: number; reason: 'empty' | 'no_new' } {
-  const pool =
-    difficulty === 'all'
-      ? dbLoadQuestions({ topicId, ownerType, ownerId })
-      : loadBankQuestions(topicId, difficulty, ownerType, ownerId)
+  const pool = loadRoundPool(topicId, difficulty, ownerType, ownerId)
   if (pool.length === 0) {
     return { available: 0, reason: 'empty' }
   }

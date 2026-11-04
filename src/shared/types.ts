@@ -63,11 +63,16 @@ export type QuizAttempt = {
   categoryId: string
   categoryName: string
   topicName: string
-  difficulty: PlayDifficulty
+  /** all, one level, or a mix such as hard,medium. */
+  difficulty: string
   count: number
   good: number
   bad: number
   skipped: number
+  /** Questions from this round, when it was saved with them. Older rows omit this. */
+  questions?: QuizQuestion[]
+  /** Same length as questions. True when that question was missed or skipped. */
+  failed?: boolean[]
 }
 
 /** AI engine settings shown in admin. The raw API key is never included. */

@@ -4,7 +4,7 @@ import type { Difficulty } from '../shared/types'
 import { appendPlayerAttempt, deletePlayerAttempt, listPlayerAttempts, parseAttemptFields } from './attemptsStore'
 import { generateQuizRound, isCancelledError } from './ai'
 import { generateAllJobJson, startGenerateAllJob } from './generateAllJob'
-import { playerAccount, playerCookie, playerSessions } from './httpAuth'
+import { clientAddress, loginPaused, noteLoginFailure, noteLoginSuccess, playerAccount, playerCookie, playerSessions } from './httpAuth'
 import { difficulties, parseGenerateBody, parseOptionalDifficulty, parseQuestionRemovals } from './httpParse'
 import { log } from './log'
 import {
@@ -22,12 +22,21 @@ import {
 /** Player login and private bank routes. */
 export function mountPlayerApi(app: Hono) {
   app.post('/api/player/login', async (c) => {
+    const address = clientAddress(c)
+    if (loginPaused(address)) {
+      return c.json({ error: 'login_paused' }, 429)
+    }
     const body = await c.req.json<{ username?: string; password?: string }>()
     const account = findPlayerUser(String(body.username ?? ''), String(body.password ?? ''))
     if (!account) {
-      log('warn', 'Player login failed')
+      log('warn', `Player login failed from ${address}`)
+      if (noteLoginFailure(address)) {
+        log('warn', `Login paused 10 minutes for ${address}`)
+        return c.json({ error: 'login_paused' }, 429)
+      }
       return c.json({ error: 'Invalid credentials' }, 401)
     }
+    noteLoginSuccess(address)
     const token = crypto.randomUUID()
     playerSessions.set(token, account)
     setCookie(c, playerCookie, token, {
@@ -36,7 +45,7 @@ export function mountPlayerApi(app: Hono) {
       sameSite: 'Lax',
       maxAge: 60 * 60 * 8,
     })
-    log('info', `Player logged in: ${account.username}`)
+    log('info', `Player logged in: ${account.username} from ${address}`)
     return c.json({ ok: true, username: account.username, id: account.id })
   })
 

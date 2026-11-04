@@ -1,4 +1,5 @@
 import type { BankCount, Category, Difficulty, PlayDifficulty, QuizQuestion, QuizScore, StoredQuestion } from '../shared/types'
+import { difficultyLabel } from './catalogShared'
 import { strings } from './strings'
 
 /** Browser store so /play does not call the AI again on reload. */
@@ -34,8 +35,69 @@ export function isDifficulty(value?: string): value is Difficulty {
   return value === 'hard' || value === 'medium' || value === 'easy' || value === 'children'
 }
 
+/** Levels the player ticked. One level, every level, or a mix such as hard,medium. */
+export function roundLevels(value?: string): Difficulty[] | 'all' | null {
+  if (!value) {
+    return null
+  }
+  if (value === 'all') {
+    return 'all'
+  }
+  if (isDifficulty(value)) {
+    return [value]
+  }
+  const levels = value.split(',').filter(isDifficulty)
+  return levels.length ? levels : null
+}
+
+/** Heading text for one level, Alla, or a mix. */
+export function formatRoundDifficulty(value?: string) {
+  const levels = roundLevels(value)
+  if (!levels) {
+    return ''
+  }
+  if (levels === 'all') {
+    return difficultyLabel('all')
+  }
+  return levels.map((d) => difficultyLabel(d)).join(' · ')
+}
+
 export function isPlayDifficulty(value?: string): value is PlayDifficulty {
   return value === 'all' || isDifficulty(value)
+}
+
+/** Stored round key: all, one level, or hard,medium. */
+export function selectionKey(available: Difficulty[], picked: Difficulty[]) {
+  const levels = available.filter((d) => picked.includes(d))
+  if (!levels.length) {
+    return ''
+  }
+  if (levels.length === available.length) {
+    return 'all'
+  }
+  return levels.join(',')
+}
+
+/** Levels to tick again from a stored key. Alla means every stocked level. */
+export function levelsFromKey(available: Difficulty[], key?: string) {
+  const parsed = roundLevels(key)
+  if (!parsed || parsed === 'all') {
+    return available
+  }
+  const picked = available.filter((d) => parsed.includes(d))
+  return picked.length ? picked : available
+}
+
+/** What /api/quiz/start should draw for a stored key. */
+export function startDifficulty(key?: string): { difficulty: PlayDifficulty; difficulties?: Difficulty[] } {
+  const levels = roundLevels(key)
+  if (!levels || levels === 'all') {
+    return { difficulty: 'all' }
+  }
+  if (levels.length === 1) {
+    return { difficulty: levels[0] }
+  }
+  return { difficulty: 'all', difficulties: levels }
 }
 
 export type PlayerSession = { role: 'guest' | 'user'; username: string }
@@ -113,6 +175,31 @@ export function readStoredRound(): StoredRound | null {
 
 export function writeStoredRound(round: StoredRound) {
   sessionStorage.setItem(ROUND_KEY, JSON.stringify(round))
+}
+
+/** New question order and new option order for a replay of a saved round. */
+export function reshuffleQuestions(items: QuizQuestion[]): QuizQuestion[] {
+  const next = items.map((q) => {
+    const pairs = q.options.map((text, i) => ({ text, correct: i === q.correctIndex }))
+    for (let i = pairs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      const tmp = pairs[i]
+      pairs[i] = pairs[j]
+      pairs[j] = tmp
+    }
+    return {
+      ...q,
+      options: pairs.map((p) => p.text),
+      correctIndex: pairs.findIndex((p) => p.correct),
+    }
+  })
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = next[i]
+    next[i] = next[j]
+    next[j] = tmp
+  }
+  return next
 }
 
 export function readPlayerSession(): PlayerSession | null {
@@ -214,9 +301,32 @@ export function bankAvailable(counts: BankCount[], topicId: string, difficulty: 
   return counts.find((row) => row.topicId === topicId && row.difficulty === difficulty)?.count ?? 0
 }
 
+/** Levels that have at least one question, in display order. */
+export function playableLevels(counts: BankCount[], topicId: string): Difficulty[] {
+  return DIFFICULTY_ORDER.filter((d) => bankAvailable(counts, topicId, d) >= 1)
+}
+
+/** Questions for the ticked levels. Every stocked level uses the unique subject total. */
+export function bankForLevels(counts: BankCount[], topicId: string, levels: Difficulty[]) {
+  const available = playableLevels(counts, topicId)
+  const picked = available.filter((d) => levels.includes(d))
+  if (!picked.length) {
+    return 0
+  }
+  if (picked.length === available.length) {
+    return bankAvailable(counts, topicId, 'all')
+  }
+  if (picked.length === 1) {
+    return bankAvailable(counts, topicId, picked[0])
+  }
+  const sum = picked.reduce((total, d) => total + bankAvailable(counts, topicId, d), 0)
+  const uniqueAll = bankAvailable(counts, topicId, 'all')
+  return uniqueAll > 0 ? Math.min(sum, uniqueAll) : sum
+}
+
 /** Alla first, then each level that has at least one question. */
 export function playDifficultyChoices(counts: BankCount[], topicId: string): PlayDifficulty[] {
-  const diffs: PlayDifficulty[] = DIFFICULTY_ORDER.filter((d) => bankAvailable(counts, topicId, d) >= 1)
+  const diffs = playableLevels(counts, topicId)
   if (!diffs.length) {
     return []
   }
@@ -227,13 +337,15 @@ export type QuizStartResult =
   | { questions: QuizQuestion[]; requested: number; available: number }
   | { error: string; available?: number; requested?: number }
 
-/** Draw a round from the bank. Unseen questions only; may be shorter than requested. */
+/** Draw a round from the bank. Several levels are one pool; a shared question is drawn once. */
 export async function fetchQuizRound(
   topicId: string,
   count: number,
   difficulty: PlayDifficulty,
   signal?: AbortSignal,
+  difficulties?: Difficulty[],
 ): Promise<QuizStartResult> {
+  const several = difficulties && difficulties.length > 1
   const res = await fetch('/api/quiz/start', {
     method: 'POST',
     credentials: 'include',
@@ -242,7 +354,8 @@ export async function fetchQuizRound(
     body: JSON.stringify({
       topicId,
       count,
-      difficulty,
+      difficulty: several ? 'all' : difficulty,
+      ...(several ? { difficulties } : {}),
       exclude: readSeen(topicId),
     }),
   })

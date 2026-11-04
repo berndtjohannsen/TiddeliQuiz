@@ -4,7 +4,7 @@ import type { Difficulty, LogLevel } from '../shared/types'
 import { generateQuizRound, isCancelledError } from './ai'
 import { getAdminCredentials } from './config'
 import { generateAllJobJson, startGenerateAllJob } from './generateAllJob'
-import { cookieName, isAdmin, sessions } from './httpAuth'
+import { cookieName, clientAddress, isAdmin, loginPaused, noteLoginFailure, noteLoginSuccess, sessions } from './httpAuth'
 import {
   bankCountsForQuestion,
   difficulties,
@@ -40,12 +40,21 @@ const logLevels: LogLevel[] = ['error', 'warn', 'info', 'debug']
 /** Admin login, settings, platform bank, and Users-tab bank. */
 export function mountAdminApi(app: Hono) {
   app.post('/api/admin/login', async (c) => {
+    const address = clientAddress(c)
+    if (loginPaused(address)) {
+      return c.json({ error: 'login_paused' }, 429)
+    }
     const body = await c.req.json<{ username?: string; password?: string }>()
     const expected = getAdminCredentials()
     if (body.username !== expected.username || body.password !== expected.password) {
-      log('warn', 'Admin login failed')
+      log('warn', `Admin login failed from ${address}`)
+      if (noteLoginFailure(address)) {
+        log('warn', `Login paused 10 minutes for ${address}`)
+        return c.json({ error: 'login_paused' }, 429)
+      }
       return c.json({ error: 'Invalid credentials' }, 401)
     }
+    noteLoginSuccess(address)
     const token = crypto.randomUUID()
     sessions.add(token)
     setCookie(c, cookieName, token, {
@@ -54,7 +63,7 @@ export function mountAdminApi(app: Hono) {
       sameSite: 'Lax',
       maxAge: 60 * 60 * 8,
     })
-    log('info', 'Admin logged in')
+    log('info', `Admin logged in from ${address}`)
     return c.json({ ok: true })
   })
 

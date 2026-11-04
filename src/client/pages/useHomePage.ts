@@ -1,28 +1,32 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import type { BankCount, CatalogResponse, Category, PlayDifficulty, QuizAttempt, Topic } from '../../shared/types'
+import type { BankCount, CatalogResponse, Category, Difficulty, QuizAttempt, Topic } from '../../shared/types'
 import { fillText } from '../catalogUi'
 import {
-  bankAvailable,
+  bankForLevels,
   clearPlayerContext,
-  playDifficultyChoices,
+  playableLevels,
   roundAllCount,
   roundCountChoices,
   clearSeen,
   fetchQuizRound,
-  isPlayDifficulty,
   isPrivateCategory,
+  levelsFromKey,
   readPlayerSession,
   readStoredRound,
+  reshuffleQuestions,
   ROUND_KEY,
+  selectionKey,
+  startDifficulty,
   unseenLeftAfterDraw,
   writePlayerSession,
+  writeStoredRound,
   type PlayerSession,
 } from '../playerSession'
 import { strings } from '../strings'
 
 export type HomeGate = 'choose' | 'user-login' | 'play'
 export type HomePlayView = 'play' | 'mine'
-export type CatalogStatus = 'loading' | 'ready' | 'empty' | 'error'
+export type CatalogStatus = 'loading' | 'ready' | 'empty' | 'error' | 'busy'
 
 /** Login, catalog load, and starting a round from the home screen. */
 export function useHomePage() {
@@ -40,7 +44,7 @@ export function useHomePage() {
   const [categoryId, setCategoryId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [count, setCount] = useState(10)
-  const [difficulty, setDifficulty] = useState<PlayDifficulty>('all')
+  const [levels, setLevels] = useState<Difficulty[]>([])
   const [status, setStatus] = useState<CatalogStatus>('loading')
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState('')
@@ -51,6 +55,7 @@ export function useHomePage() {
   const startSeq = useRef(0)
   /** Count restored from the last round. Applied once, then "Alla" is the default. */
   const pinnedCount = useRef<number | null>(null)
+  const pinnedLevels = useRef<string | null>(null)
 
   useEffect(() => {
     return () => {
@@ -70,6 +75,12 @@ export function useHomePage() {
         await fetch('/api/player/logout', { method: 'POST', credentials: 'include' })
       }
       const res = await fetch('/api/catalog', { credentials: 'include' })
+      if (res.status === 429) {
+        if (!cancelled) {
+          setStatus('busy')
+        }
+        return
+      }
       if (!res.ok) {
         throw new Error('bad response')
       }
@@ -88,8 +99,8 @@ export function useHomePage() {
       if (savedTopic && savedCategory) {
         setCategoryId(savedCategory.id)
         setTopicId(savedTopic.id)
-        if (isPlayDifficulty(saved?.difficulty)) {
-          setDifficulty(saved.difficulty)
+        if (saved?.difficulty) {
+          pinnedLevels.current = saved.difficulty
         }
         if (typeof saved?.requestedCount === 'number' && saved.requestedCount >= 5) {
           pinnedCount.current = saved.requestedCount
@@ -141,7 +152,14 @@ export function useHomePage() {
       body: JSON.stringify({ username: loginName, password: loginPassword }),
     })
     if (!res.ok) {
-      setLoginError(strings.playerLoginFailed)
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      setLoginError(
+        data.error === 'login_paused'
+          ? strings.playerLoginPaused
+          : data.error === 'busy'
+            ? strings.serverBusy
+            : strings.playerLoginFailed,
+      )
       return
     }
     const data = (await res.json()) as { username?: string }
@@ -164,47 +182,55 @@ export function useHomePage() {
   const myCategories = categories.filter(isPrivateCategory)
   const pickingMine = myCategories.some((c) => c.id === categoryId)
   const topicsInCategory = topics.filter((t) => t.categoryId === categoryId)
-  const guestDifficulties = playDifficultyChoices(bankCounts, topicId)
-  const countChoices = roundCountChoices(bankAvailable(bankCounts, topicId, difficulty))
+  const levelChoices = playableLevels(bankCounts, topicId)
+  const countChoices = roundCountChoices(bankForLevels(bankCounts, topicId, levels))
   const canStart =
     status === 'ready' &&
     Boolean(topicId) &&
     topicsInCategory.length > 0 &&
     !busy &&
-    countChoices.includes(count) &&
-    guestDifficulties.includes(difficulty)
+    levels.length > 0 &&
+    countChoices.includes(count)
 
-  // Keep difficulty in range, and default the count to every available question.
+  // A new subject starts with every level. A cleared tick list stays cleared.
   useEffect(() => {
     if (!topicId) {
       return
     }
-    const diffs = playDifficultyChoices(bankCounts, topicId)
-    if (diffs.length && !diffs.includes(difficulty)) {
-      // Alla stays available whenever any level can be played. Do not fall back to Svår.
-      setDifficulty(diffs.includes('all') ? 'all' : diffs[0])
+    const available = playableLevels(bankCounts, topicId)
+    if (pinnedLevels.current != null) {
+      const key = pinnedLevels.current
+      pinnedLevels.current = null
+      setLevels(levelsFromKey(available, key))
       return
     }
-    const available = bankAvailable(bankCounts, topicId, difficulty)
-    const all = roundAllCount(available)
-    const counts = roundCountChoices(available)
-    if (!all || !counts.length) {
+    const stillThere = levels.filter((d) => available.includes(d))
+    if (stillThere.join() !== levels.join()) {
+      setLevels(stillThere)
+      const all = roundAllCount(bankForLevels(bankCounts, topicId, stillThere))
+      if (all) {
+        setCount(all)
+      }
       return
     }
-    if (pinnedCount.current != null) {
-      const pinned = pinnedCount.current
-      pinnedCount.current = null
-      setCount(counts.includes(pinned) ? pinned : all)
+    if (!stillThere.length) {
       return
     }
-    setCount(all)
-  }, [topicId, difficulty, bankCounts])
+    const all = roundAllCount(bankForLevels(bankCounts, topicId, stillThere))
+    const counts = roundCountChoices(all)
+    if (!all || !counts.length || pinnedCount.current == null) {
+      return
+    }
+    const pinned = pinnedCount.current
+    pinnedCount.current = null
+    setCount(counts.includes(pinned) ? pinned : all)
+  }, [topicId, levels, bankCounts])
 
   // Drop a stale start error when the player changes what they would start.
   useEffect(() => {
     setStartError('')
     setBankExhausted(false)
-  }, [categoryId, topicId, count, difficulty])
+  }, [categoryId, topicId, count, levels])
 
   function onPickCategory(id: string) {
     setStartError('')
@@ -218,17 +244,18 @@ export function useHomePage() {
     chooseTopic(id)
   }
 
-  /** A chosen subject starts at Alla difficulties and every question in that subject. */
+  /** A chosen subject starts with every stocked level ticked. */
   function chooseTopic(id: string) {
     setTopicId(id)
     if (!id) {
+      setLevels([])
       return
     }
     pinnedCount.current = null
-    const diffs = playDifficultyChoices(bankCounts, id)
-    const next: PlayDifficulty = diffs.includes('all') ? 'all' : diffs[0] ?? 'all'
-    setDifficulty(next)
-    const total = roundAllCount(bankAvailable(bankCounts, id, next))
+    pinnedLevels.current = null
+    const available = playableLevels(bankCounts, id)
+    setLevels(available)
+    const total = roundAllCount(bankForLevels(bankCounts, id, available))
     if (total) {
       setCount(total)
     }
@@ -241,31 +268,49 @@ export function useHomePage() {
     setCount(value)
   }
 
-  function onDifficulty(value: PlayDifficulty) {
+  function applyLevels(next: Difficulty[]) {
     setStartError('')
     pinnedCount.current = null
-    setDifficulty(value)
-    // Alla on the previous level is often 10. Switch the number to this level's full bank now.
-    const all = roundAllCount(bankAvailable(bankCounts, topicId, value))
+    const available = playableLevels(bankCounts, topicId)
+    const picked = available.filter((d) => next.includes(d))
+    setLevels(picked)
+    const all = roundAllCount(bankForLevels(bankCounts, topicId, picked))
     if (all) {
       setCount(all)
     }
   }
 
-  /** Difficulty and count as shown in the form, including a choice made in this same submit. */
-  function chosenRound(form?: HTMLFormElement): { count: number; difficulty: PlayDifficulty } {
-    const diffEl = form?.elements.namedItem('difficulty')
+  function onToggleLevel(level: Difficulty) {
+    const next = levels.includes(level) ? levels.filter((d) => d !== level) : [...levels, level]
+    applyLevels(next)
+  }
+
+  function onToggleAll() {
+    const available = playableLevels(bankCounts, topicId)
+    const allOn = available.length > 0 && available.every((d) => levels.includes(d))
+    applyLevels(allOn ? [] : available)
+  }
+
+  /** Levels and count as shown in the form, including a tick made in this same submit. */
+  function chosenRound(form?: HTMLFormElement): { count: number; difficulty: string } {
+    const node = form?.elements.namedItem('level')
+    const boxes =
+      node instanceof RadioNodeList ? Array.from(node) : node instanceof HTMLInputElement ? [node] : []
+    const available = playableLevels(bankCounts, topicId)
+    const picked = boxes.length
+      ? available.filter((d) =>
+          boxes.some((el) => el instanceof HTMLInputElement && el.checked && el.value === d),
+        )
+      : levels
+    const nextDifficulty = selectionKey(available, picked)
+    const all = roundAllCount(bankForLevels(bankCounts, topicId, picked))
     const countEl = form?.elements.namedItem('count')
-    const nextDifficulty =
-      diffEl instanceof HTMLSelectElement && isPlayDifficulty(diffEl.value) ? diffEl.value : difficulty
-    const available = bankAvailable(bankCounts, topicId, nextDifficulty)
-    const all = roundAllCount(available)
     // The first row is "Alla". Its old value can still be 10 until React redraws the list.
     if (countEl instanceof HTMLSelectElement && countEl.selectedIndex === 0 && all) {
       return { count: all, difficulty: nextDifficulty }
     }
     const raw = countEl instanceof HTMLSelectElement ? Number(countEl.value) : count
-    const choices = roundCountChoices(available)
+    const choices = roundCountChoices(all)
     return {
       count: choices.includes(raw) ? raw : all || count,
       difficulty: nextDifficulty,
@@ -276,7 +321,7 @@ export function useHomePage() {
     nextTopicId: string,
     nextCategoryId: string,
     nextCount: number,
-    nextDifficulty: PlayDifficulty,
+    nextDifficulty: string,
   ) {
     setStartError('')
     setBusy(true)
@@ -284,8 +329,15 @@ export function useHomePage() {
     startAbort.current?.abort()
     const ac = new AbortController()
     startAbort.current = ac
+    const pick = startDifficulty(nextDifficulty)
     try {
-      const data = await fetchQuizRound(nextTopicId, nextCount, nextDifficulty, ac.signal)
+      const data = await fetchQuizRound(
+        nextTopicId,
+        nextCount,
+        pick.difficulty,
+        ac.signal,
+        pick.difficulties,
+      )
       if (seq !== startSeq.current || ac.signal.aborted) {
         return
       }
@@ -300,7 +352,9 @@ export function useHomePage() {
                   available: data.available ?? 0,
                   requested: data.requested ?? nextCount,
                 })
-              : strings.startFailed,
+              : data.error === 'busy'
+                ? strings.serverBusy
+                : strings.startFailed,
         )
         setBusy(false)
         return
@@ -346,6 +400,9 @@ export function useHomePage() {
   async function onStart(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const chosen = chosenRound(e.currentTarget)
+    if (!chosen.difficulty) {
+      return
+    }
     await startRound(topicId, categoryId, chosen.count, chosen.difficulty)
   }
 
@@ -355,10 +412,38 @@ export function useHomePage() {
     }
     clearSeen(topicId)
     setBankExhausted(false)
-    await startRound(topicId, categoryId, count, difficulty)
+    const key = selectionKey(playableLevels(bankCounts, topicId), levels)
+    await startRound(topicId, categoryId, count, key || 'all')
   }
 
-  function onPlayAgain(row: QuizAttempt) {
+  function onPlayAgain(row: QuizAttempt, onlyFailed = false) {
+    const saved = row.questions
+    const flags = row.failed
+    if (saved?.length && flags?.length === saved.length) {
+      const picked = onlyFailed ? saved.filter((_, i) => flags[i]) : saved
+      if (!picked.length) {
+        return
+      }
+      writeStoredRound({
+        topicId: row.topicId,
+        categoryId: row.categoryId,
+        categoryName: row.categoryName,
+        topicName: row.topicName,
+        difficulty: row.difficulty,
+        questions: reshuffleQuestions(picked),
+        allQuestions: saved,
+        requestedCount: picked.length,
+        shortNotice: '',
+        attemptSaved: false,
+      })
+      const q = new URLSearchParams({
+        topic: row.topicId,
+        count: String(picked.length),
+        difficulty: row.difficulty,
+      })
+      window.location.assign(`/play?${q.toString()}`)
+      return
+    }
     const topic = topics.find((t) => t.id === row.topicId)
     if (!topic) {
       setStartError(strings.myPlayAgainGone)
@@ -368,9 +453,9 @@ export function useHomePage() {
     setCategoryId(topic.categoryId)
     setTopicId(topic.id)
     setCount(row.count)
-    setDifficulty(row.difficulty)
+    setLevels(levelsFromKey(playableLevels(bankCounts, topic.id), row.difficulty))
     setPlayView('play')
-    void startRound(topic.id, topic.categoryId, row.count, row.difficulty)
+    void startRound(topic.id, topic.categoryId, row.count, row.difficulty || 'all')
   }
 
   function openMine() {
@@ -397,8 +482,10 @@ export function useHomePage() {
     topicId,
     count,
     onCount,
-    difficulty,
-    onDifficulty,
+    levels,
+    levelChoices,
+    onToggleLevel,
+    onToggleAll,
     status,
     busy,
     startError,
@@ -408,7 +495,6 @@ export function useHomePage() {
     platformCategories,
     myCategories,
     pickingMine,
-    guestDifficulties,
     countChoices,
     canStart,
     onGuest,

@@ -50,15 +50,16 @@ export default function HomePage() {
             busy={home.busy}
             count={home.count}
             countChoices={home.countChoices}
-            difficulty={home.difficulty}
-            guestDifficulties={home.guestDifficulties}
+            levels={home.levels}
+            levelChoices={home.levelChoices}
             startError={home.startError}
             bankExhausted={home.bankExhausted}
             canStart={home.canStart}
             onPickCategory={home.onPickCategory}
             onPickTopic={home.onPickTopic}
             onCount={home.onCount}
-            onDifficulty={home.onDifficulty}
+            onToggleLevel={home.onToggleLevel}
+            onToggleAll={home.onToggleAll}
             onMine={home.openMine}
             onReplayBank={() => void home.onReplayBank()}
             onSubmit={(e) => void home.onStart(e)}

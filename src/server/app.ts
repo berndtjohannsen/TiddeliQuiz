@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
-import type { PlayDifficulty } from '../shared/types'
+import type { Difficulty, PlayDifficulty } from '../shared/types'
 import { mountAdminApi } from './adminApi'
 import { mountCatalogMutations } from './catalogMutations'
-import { isAdmin, playerAccount } from './httpAuth'
+import { isAdmin, playerAccount, admitVisitor, clientAddress } from './httpAuth'
 import { difficulties, routeParam } from './httpParse'
 import { log } from './log'
 import { mountPlayerApi } from './playerApi'
@@ -23,6 +23,13 @@ export const app = new Hono()
 
 // Question lists change after a delete. Browsers must not reuse an older GET.
 app.use('/api/*', async (c, next) => {
+  if (c.req.path !== '/api/health') {
+    const address = clientAddress(c)
+    if (!admitVisitor(address)) {
+      log('warn', `Refused ${address}: too many visitors`)
+      return c.json({ error: 'busy' }, 429)
+    }
+  }
   await next()
   c.header('Cache-Control', 'no-store')
 })
@@ -78,6 +85,7 @@ app.post('/api/quiz/start', async (c) => {
     topicId?: string
     count?: number
     difficulty?: string
+    difficulties?: unknown
     exclude?: unknown
   }>()
   const catalog = loadCatalog()
@@ -97,10 +105,15 @@ app.post('/api/quiz/start', async (c) => {
   const rawCount = Number(body.count)
   const whole = Number.isFinite(rawCount) ? Math.round(rawCount) : 10
   const count = Math.max(1, whole)
-  const difficulty: PlayDifficulty =
+  const one: PlayDifficulty =
     body.difficulty === 'all' || difficulties.includes(body.difficulty as (typeof difficulties)[number])
       ? (body.difficulty as PlayDifficulty)
       : 'medium'
+  const listed = Array.isArray(body.difficulties)
+    ? difficulties.filter((d) => (body.difficulties as unknown[]).includes(d))
+    : []
+  const difficulty: PlayDifficulty | Difficulty[] = listed.length > 1 ? listed : one
+  const difficultyLabel = Array.isArray(difficulty) ? difficulty.join(',') : difficulty
   const exclude = Array.isArray(body.exclude)
     ? body.exclude
         .filter((q): q is string => typeof q === 'string')
@@ -116,16 +129,16 @@ app.post('/api/quiz/start', async (c) => {
     : drawUserRound(player?.id ?? '', topic.id, difficulty, count, exclude)
   if ('reason' in drawn) {
     const error = drawn.reason === 'no_new' ? 'no_new_questions' : 'bank_too_small'
-    log('info', `Bank draw failed for ${topic.name} (${difficulty}): ${error}`)
+    log('info', `Bank draw failed for ${topic.name} (${difficultyLabel}) from ${clientAddress(c)}: ${error}`)
     return c.json({ error, available: drawn.available, requested: count }, 409)
   }
   if (drawn.questions.length < count) {
     log(
       'info',
-      `Short round from bank: ${drawn.questions.length} of ${count} new for ${topic.name} (${difficulty})`,
+      `Short round from bank: ${drawn.questions.length} of ${count} new for ${topic.name} (${difficultyLabel}) from ${clientAddress(c)}`,
     )
   } else {
-    log('info', `Round from bank: ${drawn.questions.length} for ${topic.name} (${difficulty})`)
+    log('info', `Round from bank: ${drawn.questions.length} for ${topic.name} (${difficultyLabel}) from ${clientAddress(c)}`)
   }
   return c.json({
     questions: drawn.questions,

@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import type { QuizQuestion, QuizScore } from '../../shared/types'
 import { recordFinishedAttempt } from '../attemptHistory'
-import { difficultyLabel, fillText } from '../catalogUi'
+import { fillText } from '../catalogUi'
 import {
   clearSeen,
   downloadQuizCopy,
   emptyOutcomes,
   fetchQuizRound,
+  formatRoundDifficulty,
   hasPlayerSession,
-  isPlayDifficulty,
   readStoredRound,
+  roundLevels,
+  startDifficulty,
   tallyOutcomes,
   unseenLeftAfterDraw,
   writeStoredRound,
@@ -200,7 +202,8 @@ export function usePlayPage() {
     const topicId = latest?.topicId
     const difficulty = latest?.difficulty ?? heading.difficulty
     const requested = latest?.requestedCount ?? questions.length
-    if (!topicId || !isPlayDifficulty(difficulty)) {
+    const pick = startDifficulty(difficulty)
+    if (!topicId || !roundLevels(difficulty)) {
       setMoreError(strings.startFailed)
       return
     }
@@ -210,7 +213,7 @@ export function usePlayPage() {
     setMoreBusy(true)
     setMoreError('')
     try {
-      const data = await fetchQuizRound(topicId, requested, difficulty)
+      const data = await fetchQuizRound(topicId, requested, pick.difficulty, undefined, pick.difficulties)
       if ('error' in data) {
         const exhausted = data.error === 'no_new_questions'
         setBankExhausted(exhausted)
@@ -222,7 +225,9 @@ export function usePlayPage() {
                   available: data.available ?? 0,
                   requested: data.requested ?? requested,
                 })
-              : strings.startFailed,
+              : data.error === 'busy'
+                ? strings.serverBusy
+                : strings.startFailed,
         )
         return
       }
@@ -306,7 +311,7 @@ export function usePlayPage() {
     downloadQuizCopy({
       categoryName: heading.categoryName,
       topicName: heading.topicName,
-      difficultyLabel: isPlayDifficulty(heading.difficulty) ? difficultyLabel(heading.difficulty) : '',
+      difficultyLabel: formatRoundDifficulty(heading.difficulty),
       questions,
       forTeacher,
     })
@@ -322,7 +327,7 @@ export function usePlayPage() {
       return
     }
     const difficulty = latest?.difficulty ?? heading.difficulty
-    if (!latest?.topicId || !isPlayDifficulty(difficulty)) {
+    if (!latest?.topicId || !roundLevels(difficulty)) {
       return
     }
     savingAttempt.current = true
@@ -337,6 +342,13 @@ export function usePlayPage() {
       good: finalScore.good,
       bad: finalScore.bad,
       skipped: finalScore.skipped,
+      // Same order as finalOutcomes, so Spela igen can replay all or only the failures.
+      ...(questions.length === finalOutcomes.length && questions.length <= 500
+        ? {
+            questions,
+            failed: finalOutcomes.map((row) => row.missed || row.skipped),
+          }
+        : {}),
     })
     if (result.error) {
       setSaveError(strings.myResultsSaveFailed)

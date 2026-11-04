@@ -20,8 +20,20 @@ function readGuestAttempts(): QuizAttempt[] {
 }
 
 function writeGuestAttempts(attempts: QuizAttempt[]) {
+  const payload = JSON.stringify({ attempts })
   try {
-    localStorage.setItem(GUEST_KEY, JSON.stringify({ attempts }))
+    localStorage.setItem(GUEST_KEY, payload)
+    return
+  } catch {
+    // The new round's questions can exceed the browser limit. Keep its score, and keep older replays.
+  }
+  const [newest, ...older] = attempts
+  if (!newest) {
+    return
+  }
+  const { questions: _questions, failed: _failed, ...scoreOnly } = newest
+  try {
+    localStorage.setItem(GUEST_KEY, JSON.stringify({ attempts: [scoreOnly, ...older] }))
   } catch {
     // Private mode can block localStorage.
   }

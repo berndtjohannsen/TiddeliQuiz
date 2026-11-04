@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { QuizAttempt } from '../../shared/types'
 import { loadAttemptHistory, removeAttempt } from '../attemptHistory'
-import { difficultyLabel, fillText } from '../catalogUi'
+import { fillText } from '../catalogUi'
+import { formatRoundDifficulty } from '../playerSession'
 import { strings } from '../strings'
 
 function formatWhen(iso: string) {
@@ -16,8 +17,8 @@ function percent(row: QuizAttempt) {
   return row.count ? Math.round((row.good / row.count) * 100) : 0
 }
 
-/** Finished quizzes under the start form. Each row can be removed. */
-export function Results(props: { onPlayAgain: (row: QuizAttempt) => void }) {
+/** Finished quizzes under the start form. Each row can be replayed or removed. */
+export function Results(props: { onPlayAgain: (row: QuizAttempt, onlyFailed: boolean) => void }) {
   const [rows, setRows] = useState<QuizAttempt[] | null>(null)
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export function Results(props: { onPlayAgain: (row: QuizAttempt) => void }) {
                 {[row.categoryName, row.topicName].filter(Boolean).join(' / ')}
                 <span className="font-normal text-slate-400">
                   {' · '}
-                  {difficultyLabel(row.difficulty)}
+                  {formatRoundDifficulty(row.difficulty)}
                 </span>
               </span>
               <span className="mt-1 block text-xs text-slate-400">
@@ -77,13 +78,33 @@ export function Results(props: { onPlayAgain: (row: QuizAttempt) => void }) {
               </span>
             </div>
             <div className="flex shrink-0 flex-col items-end px-2 py-2">
-              <button
-                type="button"
-                className="px-2 py-1 text-sm text-sky-400 hover:text-sky-300"
-                onClick={() => props.onPlayAgain(row)}
-              >
-                {strings.myPlayAgain}
-              </button>
+              {row.questions?.length && row.failed?.length === row.questions.length ? (
+                <>
+                  <button
+                    type="button"
+                    className="px-2 py-1 text-sm text-sky-400 hover:text-sky-300"
+                    onClick={() => props.onPlayAgain(row, false)}
+                  >
+                    {strings.myPlayAgainAll}
+                  </button>
+                  <button
+                    type="button"
+                    className="px-2 py-1 text-sm text-sky-400 hover:text-sky-300 disabled:opacity-40"
+                    disabled={!row.failed.some(Boolean)}
+                    onClick={() => props.onPlayAgain(row, true)}
+                  >
+                    {strings.myPlayAgainFailed}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="px-2 py-1 text-sm text-sky-400 hover:text-sky-300"
+                  onClick={() => props.onPlayAgain(row, false)}
+                >
+                  {strings.myPlayAgain}
+                </button>
+              )}
               <button
                 type="button"
                 className="px-2 py-1 text-sm text-red-400 hover:text-red-300"

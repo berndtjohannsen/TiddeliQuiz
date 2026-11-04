@@ -1,5 +1,5 @@
 import { btnClass, btnSecondary, difficultyLabel } from '../catalogUi'
-import { isDifficulty, isPlayDifficulty } from '../playerSession'
+import { formatRoundDifficulty, isDifficulty, roundLevels } from '../playerSession'
 import { strings } from '../strings'
 import type { PlayPageModel } from './usePlayPage'
 
@@ -8,7 +8,7 @@ const primaryBtn = `${btnClass} disabled:opacity-50`
 /** Category / topic and difficulty above the questions. */
 export function RoundHeading(props: { categoryName?: string; topicName?: string; difficulty?: string }) {
   const subject = [props.categoryName, props.topicName].filter(Boolean).join(' / ')
-  const diff = isPlayDifficulty(props.difficulty) ? difficultyLabel(props.difficulty) : ''
+  const diff = formatRoundDifficulty(props.difficulty)
   if (!subject && !diff) {
     return null
   }
@@ -35,6 +35,8 @@ export function PlayError(props: { message: string }) {
 export function PlayQuestion(props: { play: PlayPageModel }) {
   const play = props.play
   const q = play.q
+  const picked = roundLevels(play.heading.difficulty)
+  const mixed = picked === 'all' || (Array.isArray(picked) && picked.length > 1)
   if (!q) {
     return null
   }
@@ -48,7 +50,7 @@ export function PlayQuestion(props: { play: PlayPageModel }) {
       {play.shortNotice ? <p className="text-sm text-amber-300">{play.shortNotice}</p> : null}
       <p className="text-sm text-slate-400">
         {strings.questionOf} {play.index + 1} / {play.questions.length}
-        {play.heading.difficulty === 'all' && isDifficulty(q.difficulty) ? (
+        {mixed && isDifficulty(q.difficulty) ? (
           <span className="text-xs text-slate-500"> · {difficultyLabel(q.difficulty)}</span>
         ) : null}
         {q.publicCode ? (
