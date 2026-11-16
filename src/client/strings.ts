@@ -237,6 +237,8 @@ export const strings = {
   questionInvalid: 'Enter the question, at least two options, and mark the correct one.',
   questionDuplicate: 'A question with this text already exists at this difficulty.',
   logSection: 'Debug log',
+  accessLog: 'Access log',
+  accessLogHint: 'Recent visits: time, address, request, and result. Health checks are not listed.',
   logLevel: 'Log level',
   logLevelHint:
     'The log below shows this level and more serious ones. Debug includes full AI prompts and replies. The API key is never logged.',

@@ -6,7 +6,7 @@ import { mountAdminApi } from './adminApi'
 import { mountCatalogMutations } from './catalogMutations'
 import { isAdmin, playerAccount, admitVisitor, clientAddress } from './httpAuth'
 import { difficulties, routeParam } from './httpParse'
-import { log } from './log'
+import { log, logAccess } from './log'
 import { mountPlayerApi } from './playerApi'
 import {
   drawPlatformRound,
@@ -20,6 +20,27 @@ import {
 
 /** HTTP API. Player and admin UIs call these routes. */
 export const app = new Hono()
+
+function skipAccessLog(requestPath: string) {
+  if (requestPath === '/api/health' || requestPath === '/api/admin/log') {
+    return true
+  }
+  // Scripts, styles, and images are not visits.
+  if (requestPath.startsWith('/assets/') || /\.[a-z0-9]+$/i.test(requestPath)) {
+    return true
+  }
+  return false
+}
+
+// Record a visit after the response is known. Health checks and the log poll are left out.
+app.use('*', async (c, next) => {
+  await next()
+  const requestPath = c.req.path
+  if (skipAccessLog(requestPath)) {
+    return
+  }
+  logAccess(c.req.method, requestPath, c.res.status, clientAddress(c))
+})
 
 // Question lists change after a delete. Browsers must not reuse an older GET.
 app.use('/api/*', async (c, next) => {

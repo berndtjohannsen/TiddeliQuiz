@@ -18,6 +18,7 @@ export default function AdminPage() {
     apiKey,
     setApiKey,
     logLines,
+    accessLines,
     message,
     error,
     setError,
@@ -301,6 +302,7 @@ export default function AdminPage() {
               config={config}
               apiKey={apiKey}
               logLines={logLines}
+              accessLines={accessLines}
               onPage={setSettingsPage}
               onApiKey={setApiKey}
               onPatchAi={patchAi}

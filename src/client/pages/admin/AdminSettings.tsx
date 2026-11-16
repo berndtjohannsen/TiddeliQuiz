@@ -11,6 +11,7 @@ export function AdminSettings(props: {
   config: AdminConfig
   apiKey: string
   logLines: string[]
+  accessLines: string[]
   onPage: (page: SettingsPage) => void
   onApiKey: (value: string) => void
   onPatchAi: (patch: Partial<AdminConfig['ai']>) => void
@@ -168,6 +169,11 @@ export function AdminSettings(props: {
       </form>
       <pre className="max-h-64 overflow-auto rounded bg-slate-900 p-3 text-xs text-slate-300">
         {props.logLines.length ? props.logLines.join('\n') : '—'}
+      </pre>
+      <h2 className="text-lg font-medium">{strings.accessLog}</h2>
+      <p className="text-sm text-slate-400">{strings.accessLogHint}</p>
+      <pre className="max-h-64 overflow-auto rounded bg-slate-900 p-3 text-xs text-slate-300">
+        {props.accessLines.length ? props.accessLines.join('\n') : '—'}
       </pre>
     </section>
   )

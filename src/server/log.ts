@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import type { LogLevel } from '../shared/types'
 
 const rank: Record<LogLevel, number> = {
@@ -51,4 +53,45 @@ export function log(level: LogLevel, message: string) {
 /** Lines visible at the current admin log level (error ⊂ warn ⊂ info ⊂ debug). */
 export function getLogLines() {
   return memory.filter((entry) => allowed(entry.level)).map((entry) => entry.line)
+}
+
+const accessFile = path.join(path.resolve(process.cwd(), 'data'), 'access.log')
+const accessMemory: string[] = []
+const maxAccessMemory = 200
+const maxAccessFile = 1000
+
+function readAccessFile() {
+  try {
+    const text = fs.readFileSync(accessFile, 'utf8')
+    return text.split('\n').map((line) => line.trim()).filter(Boolean).slice(-maxAccessFile)
+  } catch {
+    return []
+  }
+}
+
+accessMemory.push(...readAccessFile().slice(-maxAccessMemory))
+
+function writeAccessFile(lines: string[]) {
+  fs.mkdirSync(path.dirname(accessFile), { recursive: true })
+  fs.writeFileSync(accessFile, `${lines.join('\n')}\n`, 'utf8')
+}
+
+/** One visit: method, path, status, and address. Kept apart from the debug log. */
+export function logAccess(method: string, requestPath: string, status: number, address: string) {
+  const line = `${new Date().toISOString()} ${address} ${method} ${requestPath} ${status}`
+  accessMemory.push(line)
+  if (accessMemory.length > maxAccessMemory) {
+    accessMemory.shift()
+  }
+  const stored = readAccessFile()
+  stored.push(line)
+  writeAccessFile(stored.slice(-maxAccessFile))
+  if (process.env.NODE_ENV === 'production') {
+    writeContainerLog(`[access] ${line}`)
+  }
+}
+
+/** Newest visits last, same order as the file. */
+export function getAccessLines() {
+  return [...accessMemory]
 }

@@ -12,7 +12,7 @@ import {
   parseOptionalDifficulty,
   parseQuestionRemovals,
 } from './httpParse'
-import { getLogLines, log, setLogLevel } from './log'
+import { getAccessLines, getLogLines, log, setLogLevel } from './log'
 import {
   appendPlatformQuestions,
   appendUserQuestions,
@@ -142,7 +142,7 @@ export function mountAdminApi(app: Hono) {
     if (!isAdmin(c)) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
-    return c.json({ lines: getLogLines() })
+    return c.json({ lines: getLogLines(), access: getAccessLines() })
   })
 
   /** Fill the platform bank for one subject and difficulty. */

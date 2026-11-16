@@ -17,6 +17,7 @@ export function useAdminPage() {
   const [config, setConfig] = useState<AdminConfig | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [logLines, setLogLines] = useState<string[]>([])
+  const [accessLines, setAccessLines] = useState<string[]>([])
   const [message, setMessageState] = useState('')
   /** Set when a notice is written, so the next screen change is the one that clears it. */
   const messageHold = useRef(false)
@@ -188,8 +189,9 @@ export function useAdminPage() {
     if (!res.ok) {
       return
     }
-    const data = (await res.json()) as { lines: string[] }
+    const data = (await res.json()) as { lines: string[]; access?: string[] }
     setLogLines(data.lines)
+    setAccessLines(data.access ?? [])
   }
 
   const folders = useAdminFolders({
@@ -244,9 +246,10 @@ export function useAdminPage() {
       if (!res.ok || cancelled) {
         return
       }
-      const data = (await res.json()) as { lines: string[] }
+      const data = (await res.json()) as { lines: string[]; access?: string[] }
       if (!cancelled) {
         setLogLines(data.lines)
+        setAccessLines(data.access ?? [])
       }
     }
     void tick()
@@ -405,6 +408,7 @@ export function useAdminPage() {
     apiKey,
     setApiKey,
     logLines,
+    accessLines,
     message,
     error,
     setError,
